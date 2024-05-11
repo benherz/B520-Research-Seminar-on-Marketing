@@ -1,0 +1,55 @@
+\documentclass[a4paper, 12pt]{article}
+\usepackage[a4paper,top=2.5cm,bottom=2cm,left=3cm,right=3cm]{geometry}
+\usepackage{amsmath}
+\usepackage{mathptmx}
+\usepackage{pgfplotstable}
+\usepackage{multirow}
+\usepackage{caption}
+\usepackage{chngcntr}
+\usepackage{setspace}
+\usepackage[ngerman]{babel}
+\usepackage{float}
+\usepackage{bm}
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{sectsty}
+
+\title{New developments at the intersection of Machine Learning, Causal Inference, and Marketing\\
+\vspace{0.5cm}
+\large A comparison of DiD, Synthetic Controls and Synthetic DiD via Simulations}
+\date{Submission date:17.06.2024}
+\author{Benjamin Herzberger}
+
+\begin{document}
+\sectionfont{\large}
+\subsectionfont{\normalsize}
+\pagenumbering{gobble}
+\maketitle
+\singlespacing
+\newpage
+\pagenumbering{arabic}
+
+\section{Introduction}
+
+\section{Methodology}
+
+Thus, the three different estimands emerge as:
+
+
+\begin{equation*}
+\begin{aligned}
+(\hat{\tau}_{\text{did}}, \hat{\mu}, \hat{\alpha}, \hat{\beta}) &= \underset{\alpha, \beta, \mu, \tau}{\text{arg min}} \left\{ \sum_{i=1}^{N} \sum_{t=1}^{T} \left( Y_{it} - \mu - \alpha_i - \beta_t - W_{it} \tau \right)^2 \right\} \\
+(\hat{\tau}_{\text{sc}}, \hat{\mu}, \hat{\beta}) &= \underset{\mu, \beta, \tau}{\text{arg min}} \left\{ \sum_{i=1}^{N} \sum_{t=1}^{T} \left( Y_{it} - \mu - \beta_t - W_{it} \tau \right)^2 \hat{\omega}_{isc} \right\} \\
+(\hat{\tau}_{\text{sdid}}, \hat{\mu}, \hat{\alpha}, \hat{\beta}) &= \underset{\tau, \mu, \alpha, \beta}{\arg\min} \left\{ \sum_{i=1}^{N} \sum_{t=1}^{T} \left( Y_{it} - \mu - \alpha_i - \beta_t - W_{it} \tau \right)^2 \hat{\omega}_{is} \hat{\lambda}_t^{\text{sdid}} \right\}
+\end{aligned}
+\end{equation*}
+
+
+
+
+
+
+\section{Data}
+\end{document}
+
+

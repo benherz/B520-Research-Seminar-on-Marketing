@@ -11,7 +11,7 @@ library(ggplot2)
 library(reshape2)
 library(patchwork)
 
-#rm(list=ls())
+rm(list=ls())
 
 ########## Simulation functions ##########
 
@@ -246,17 +246,51 @@ plot_grouped <- function(df) {
   #ylim(95, 110)
 }
 
-
+plot_grouped_simulations <- function(dfs) {
+  dfs <- do.call(rbind, dfs)
+  # Compute mean of treated units
+  treated_means <- dfs %>% filter(grepl("Treated", Observation)) %>% 
+    group_by(Time) %>% summarize(treated_avg = mean(value))
+  # Compute mean of control group
+  control_means <- dfs %>% filter(!grepl("Treated", Observation)) %>% 
+    group_by(Time) %>% summarize(control_avg = mean(value))
+  # Combine the two dfs
+  average_data <- merge(treated_means, control_means)
+  ggplot(data = average_data) +
+    geom_line(aes(x = Time, y = control_avg, color = "Control mean"), size = 1) +
+    geom_line(aes(x = Time, y = treated_avg, color = "Treated mean"), size = 1) +
+    geom_vline(xintercept = treatment_period, linetype = "dashed", size = 1.5) +
+    labs(title = "Development of means over time",
+         x = "Year",
+         y = "Dependent variable") +
+    theme_minimal() +
+    theme(legend.position = "right",
+          plot.title = element_text(hjust = 0.5, size = 20), 
+          axis.title = element_text(size = 16),  
+          axis.text = element_text(size = 14)) +
+    scale_color_manual(values = c("Treated mean" = "red", "Control mean" = "black")) #+
+  # Set ylim
+  #ylim(95, 110)
+}
 
 ########## Test-wise estimation ##########
+# Real-life dataset for comparison
+og_data <- read.csv2("Data/california_prop99.csv") 
+og_data$PacksPerCapita <- as.numeric(og_data$PacksPerCapita)
+# Rename California to treated, everything else remains the same
+og_data$State <- ifelse(og_data$State == "California", "Treated", og_data$State)
+og_data <- og_data %>% rename(value = PacksPerCapita, Time = Year, Observation = State)
+
+treatment_period = 1989
+plot_grouped(og_data)
 
 # Set parameter values
 N <- 30
 T <- 30
 n_treated <- 5
-treatment_period <- 20
+treatment_period <- 30
 trend <- 0.05
-control_trend <- 0.1
+control_trend <- -0.1
 treated_trend <- 0.2
 mean = 0
 sd = 1
@@ -268,28 +302,21 @@ estimators = list(did=did_estimate,
                   sdid=synthdid_estimate)
 
 # Simulate data
-og_data <- read.csv2("Data/california_prop99.csv") 
-og_data$PacksPerCapita <- as.numeric(og_data$PacksPerCapita)
-og_data <- og_data %>% rename(value = PacksPerCapita, Time = Year, Observation = State)
-og_data$Observation <- ifelse(og_data$Observation == "California", "Treated", "Control")
 df_stagnant = stagnant_simulation(N, T, mean, sd, n_treated, treatment_period)
 df_noise = noise_simulation(N, T, mean, sd, n_treated, treatment_period)
-same_trend_df = same_trend_simulation(N, T, mean, sd, n_treated, treatment_period, trend)
-different_trend_df = different_trend_simulation(N, T, mean, sd, n_treated, treatment_period, control_trend, treated_trend)
-treatment_df = treatment_simulation(N, T, mean, sd, n_treated, treatment_period, trend, treatment_effect)
+df_same_trend = same_trend_simulation(N, T, mean, sd, n_treated, treatment_period, trend)
+df_different_trend = different_trend_simulation(N, T, mean, sd, n_treated, treatment_period, control_trend, treated_trend)
+df_treatment = treatment_simulation(N, T, mean, sd, n_treated, treatment_period, trend, treatment_effect)
 
-plot_grouped(treatment_df)
 
-plot_grouped(og_data, treatment_period = 1989)
-plot_grouped(og_data)
 
 # Convert to required format
 setup_og = panel.matrices(og_data)
 setup_2 = panel.matrices(df_stagnant)
 setup_3 = panel.matrices(df_noise)
-setup_4 = panel.matrices(same_trend_df)
-setup_5 = panel.matrices(different_trend_df)
-setup_6 = panel.matrices(treatment_df)
+setup_4 = panel.matrices(df_same_trend)
+setup_5 = panel.matrices(df_different_trend)
+setup_6 = panel.matrices(df_treatment)
 
 # Check structure
 head(setup_og)
@@ -325,12 +352,12 @@ estimates6 = lapply(estimators, function(estimator) { estimator(setup_6$Y,
 
 ########## Application ##########
 
-iterations = 1000
+iterations = 100
 estimates_df = data.frame(matrix(ncol = 3, nrow = iterations))
 dfs = list()
 for (i in 1:iterations) {
   # Simulate a dataframe
-  data <- same_trend_simulation(N,T, mean, sd, n_treated, treatment_period, trend)
+  data <- treatment_simulation(N,T, mean, sd, n_treated, treatment_period, trend, treatment_effect)
   # Conduct estimation
   setup = panel.matrices(data)
   estimates = lapply(estimators, function(estimator) { estimator(setup$Y,
@@ -341,23 +368,62 @@ for (i in 1:iterations) {
   estimates_df[i, 3] = unlist(estimates)["sdid"]
   # Rename columns
   colnames(estimates_df) <- c("did", "sc", "sdid")
-  dfs[i] = data
+  dfs[[i]] = data
 }
 
-# Plot distribution of estimates
-estimates_df <- melt(estimates_df)
-ggplot(data = estimates_df) +
-  geom_density(aes(x = value, color = variable), size = 1) +
-  geom_vline(xintercept = treatment_effect, linetype = "dashed", size = 1.5) +
-  labs(title = "Distribution of estimates for different estimators using 1000 noise simulations",
-       x = "Estimate",
-       y = "Density",
-       color = "Method") +
-  theme_minimal() +
-  theme(legend.position = "right",
-        plot.title = element_text(hjust = 0.5, size = 20), 
-        axis.title = element_text(size = 16),  
-        axis.text = element_text(size = 14)) +
-  scale_color_manual(values = c("did" = "red", "sc" = "blue", "sdid" = "green"))
+# Function to plot distribution of estimates
+plot_estimates <- function(estimates_df) {
+  ggplot(data = estimates_df) +
+    geom_density(aes(x = did, color = "DiD"), size = 1) +
+    geom_density(aes(x = sc, color = "SC"), size = 1) +
+    geom_density(aes(x = sdid, color = "SDiD"), size = 1) +
+    geom_vline(xintercept = treatment_effect, linetype = "dashed", size = 1.5) +
+    labs(title = "Distribution of estimates for different estimators using 1000 simulations",
+         x = "Estimate",
+         y = "Density",
+         color = "Method") +
+    theme_minimal() +
+    theme(legend.position = "right",
+          plot.title = element_text(hjust = 0.5, size = 20, face = "bold"), 
+          axis.title = element_text(size = 16, face = "bold"),  
+          axis.text = element_text(size = 14),
+          legend.title = element_text(face = "bold"),
+          legend.text = element_text(size = 12)) +
+    scale_color_manual(values = c("DiD" = "#E41A1C", "SC" = "#377EB8", "SDiD" = "#4DAF4A"),
+                       labels = c("DiD" = "DiD", "SC" = "SC", "SDiD" = "SDiD")) +
+    guides(color = guide_legend(title = "Estimator", title.position = "top", title.hjust = 0.5))
+}
 
-estimates_df %>% group_by(variable) %>% summarize(mean = mean(value), sd = sd(value))
+plot_estimates(estimates_df)
+
+
+# Compute column-wise mean of estimates
+colMeans(estimates_df)
+
+
+
+
+
+
+
+
+########################################
+dfs[1]
+test <- dfs[1]
+test
+
+plot_grouped(test)
+class(test)
+test2 <- as.data.frame(test)
+test2
+
+plot_grouped(test2)
+
+test2
+# Combine all simulations in one dataframe with meaned observations
+all_data <- do.call(rbind, dfs)
+all_data
+plot_grouped(all_data)
+
+
+plot_grouped_simulations(dfs)

@@ -28,3 +28,20 @@ plot_grouped <- ggplot(data = average_data) +
         axis.title = element_text(size = 16),  
         axis.text = element_text(size = 14)) +
   scale_color_manual(values = c("Control mean" = "red", "Treated mean" = "blue"))
+
+# Code to plot density distribution of estimates
+test <- melt(estimates_df, id.vars = c("did", "sc", "sdid"))
+estimates_df2 <- melt(estimates_df)
+ggplot(data = estimates_df2) +
+  geom_density(aes(x = value, color = variable), size = 1) +
+  geom_vline(xintercept = treatment_effect, linetype = "dashed", size = 1.5) +
+  labs(title = "Distribution of estimates for different estimators using 1000 noise simulations",
+       x = "Estimate",
+       y = "Density",
+       color = "Method") +
+  theme_minimal() +
+  theme(legend.position = "right",
+        plot.title = element_text(hjust = 0.5, size = 20), 
+        axis.title = element_text(size = 16),  
+        axis.text = element_text(size = 14)) +
+  scale_color_manual(values = c("did" = "red", "sc" = "blue", "sdid" = "green"))

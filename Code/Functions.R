@@ -60,6 +60,42 @@ trend_simulation <- function(N, T, n_treated, treatment_period, control_trend, t
   return(df)
 }
 
+### Function with mean zero innovations, treatment and violation of parallel-trends-assumption
+diff_trend_simulation <- function(N, T, n_treated, treatment_period, control_trend, treated_trend, treatment_effect) {
+  # Set up dataframe with N rows and T columns
+  df <- data.frame(matrix(ncol = T, nrow = N))
+  # Set up separate dataframe for treated units
+  treated <- data.frame(matrix(ncol = T, nrow = n_treated))
+  # Name dfs correctly
+  colnames(df) <- paste(1:T)
+  rownames(df) <- paste("Observation", 1:N, sep = "")
+  colnames(treated) <- paste(1:T)
+  rownames(treated) <- paste("Treated", 1:n_treated, sep = "")
+  # Draw N random draws as starting points
+  df[,1] <- rnorm(N, 0, 1)
+  treated[,1] <- rnorm(n_treated, 0, 1)
+  # Fill rest of columns as previous value + time-trend added (%) and random draw
+  for (i in 2:T) {
+    df[,i] <- df[,i-1] + rnorm(N, 0, 1) +
+      ifelse(i >= treatment_period, control_trend, 0)
+    treated[,i] <- treated[,i-1] + rnorm(n_treated, 0, 1) +
+      ifelse(i >= treatment_period, treated_trend, 0) +
+      ifelse(i == treatment_period, treatment_effect, 0)
+  }
+  
+  # Combine dfs
+  df <- rbind(df, treated)
+  # Pivot to long format
+  df <- df %>% mutate(Observation = rownames(df)) %>% melt(id.vars = "Observation") %>%
+    rename(Time = variable)  %>% arrange(Time)
+  df$Time <- as.integer(df$Time)
+  # Add treatment indicator period
+  df$treated <- ifelse(df$Observation %in% rownames(treated) & as.numeric(df$Time) >= treatment_period, 1, 0) 
+  df$treated <- as.integer(df$treated)
+  
+  return(df)
+}
+
 ### Function with mean-zero innovations, linear time trend and static (one-time) treatment effect
 static_treatment_simulation <- function(N, T, n_treated, treatment_period, control_trend,
                                  treated_trend, treatment_effect) {
@@ -130,7 +166,7 @@ dynamic_treatment_simulation <- function(N, T, n_treated, treatment_period, cont
 
 
 ### Function to simulate data with mean-zero innovations and heterogenuous, static treatment effects
-heterogenuous_static_simulation <- function(N, T, n_treated, treatment_period, control_trend,
+heterogeneous_static_simulation <- function(N, T, n_treated, treatment_period, control_trend,
                                  treated_trend, treatment_effect) {
   # Set up dataframe with N rows and T columns
   df <- data.frame(matrix(ncol = T, nrow = N))
@@ -165,40 +201,6 @@ heterogenuous_static_simulation <- function(N, T, n_treated, treatment_period, c
 }
 
 
-### Function to simulate data with mean-zero innovations and heterogenuous, dynamic treatment effects
-heterogeneous_static_simulation <- function(N, T, n_treated, treatment_period, control_trend,
-                                            treated_trend, treatment_effect) {
-  # Set up dataframe with N rows and T columns
-  df <- data.frame(matrix(ncol = T, nrow = N))
-  # Set up separate dataframe for treated units
-  treated <- data.frame(matrix(ncol = T, nrow = n_treated))
-  # Name dfs correctly
-  colnames(df) <- paste(1:T)
-  rownames(df) <- paste("Observation", 1:N, sep = "")
-  colnames(treated) <- paste(1:T)
-  rownames(treated) <- paste("Treated", 1:n_treated, sep = "")
-  # Draw N random draws as starting points
-  df[,1] <- rnorm(N, 0, 1)
-  treated[,1] <- rnorm(n_treated, 0, 1)
-  # Fill rest of columns as previous value + time-trend added + random draw and if treated, add heterogenuous treatment effect
-  for (i in 2:T) {
-    df[,i] <- df[,i-1] + control_trend + rnorm(N, 0, 1)
-    treated[,i] <- treated[,i-1] + treated_trend + rnorm(n_treated, 0, 1) +
-      ifelse(i == treatment_period, rnorm(n_treated, treatment_effect, 1), 0)
-  }
-  
-  # Combine dfs
-  df <- rbind(df, treated)
-  # Pivot to long format
-  df <- df %>% mutate(Observation = rownames(df)) %>% melt(id.vars = "Observation") %>%
-    rename(Time = variable)  %>% arrange(Time)
-  df$Time <- as.integer(df$Time)
-  # Add treatment indicator period
-  df$treated <- ifelse(df$Observation %in% rownames(treated) & as.numeric(df$Time) >= treatment_period, 1, 0) 
-  df$treated <- as.integer(df$treated)
-  
-  return(df)
-}
 
 ### Function to simulate data with mean-zero innovations and heterogenuous, dynamic treatment effects
 heterogeneous_dynamic_simulation <- function(N, T, n_treated, treatment_period, control_trend,
@@ -236,7 +238,7 @@ heterogeneous_dynamic_simulation <- function(N, T, n_treated, treatment_period, 
 }
 
 
-### Function to simulate data with mean-zero innovations and heterogenuous, dynamic treatment effects
+### Function to simulate data with mean-zero innovations and heterogenuous, dynamic unit-specific treatment effects
 heterogeneous_dynamic_unit_simulation <- function(N, T, n_treated, treatment_period, control_trend,
                                              treated_trend, treatment_effect) {
   # Set up dataframe with N rows and T columns
@@ -339,8 +341,8 @@ plot_grouped <- function(df) {
          y = "Dependent variable") +
     theme_minimal() +
     theme(legend.position = "right",
-          plot.title = element_text(hjust = 0.5, size = 20), 
-          axis.title = element_text(size = 16),  
+          plot.title = element_text(hjust = 0.5, size = 20, face = "bold"), 
+          axis.title = element_text(size = 16, face = "bold"),  
           axis.text = element_text(size = 14)) +
     scale_color_manual(values = c("Treated mean" = "red", "Control mean" = "black")) #+
   # Set ylim
@@ -369,8 +371,8 @@ plot_grouped_simulations <- function(dfs) {
          color = "Group") +
     theme_minimal() +
     theme(legend.position = "right",
-          plot.title = element_text(hjust = 0.5, size = 20), 
-          axis.title = element_text(size = 16),  
+          plot.title = element_text(hjust = 0.5, size = 20, face = "bold"), 
+          axis.title = element_text(size = 16, face = "bold"),  
           axis.text = element_text(size = 14)) +
     scale_color_manual(values = c("Treated mean" = "red", "Control mean" = "black")) #+
   # Set ylim

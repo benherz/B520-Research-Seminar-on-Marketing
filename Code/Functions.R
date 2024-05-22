@@ -10,6 +10,7 @@ library(tibble)
 library(ggplot2)
 library(reshape2)
 library(patchwork)
+library(fixest)
 
 #######################################################
 # Fix y-axis limit for all plotting functions
@@ -24,6 +25,18 @@ library(patchwork)
 ######################################################
 
 #rm(list=ls())
+
+########## Function to apply TWFE Regression ##########
+
+twfe_formula <- as.formula("value ~ treated | Observation + Time")
+
+twfe <- function(data, formula) {
+  # Define the model
+  model <- feols(formula, data = data)
+  # Return only treated coefficient
+  return(coef(summary(model)))
+}
+
 
 ########## Simulation functions ##########
 
@@ -297,6 +310,104 @@ repeated_simulation <- function(simulation_function, simulation_params, iteratio
 }
 
 
+### Function to contrast time consumption of SDiD, SC and TWFE 
+contrast_simulation <- function(simulation_function, simulation_params, iterations = 100) {
+
+  # Setup df for results
+  times_df = data.frame(matrix(ncol = 4, nrow = iterations))
+  colnames(times_df) <- c("N", "SDiD", "SC", "TWFE")
+  
+  # Perform estimation
+  for (i in 1:iterations) {
+   
+     # Simulate data
+    data <- do.call(simulation_function, simulation_params)
+    
+    # Start SDiD time
+    sdid_start <- Sys.time()
+    setup_sdid <- panel.matrices(data)
+    # SDiD estimation
+    sdid <- synthdid_estimate(setup_sdid$Y, setup_sdid$N0, setup_sdid$T0)
+    # Stop time 
+    sdid_end <- Sys.time()
+    times_df[i, 2] <- sdid_end - sdid_start
+    
+
+    # Start SC time
+    sc_start <- Sys.time()
+    setup_sc <- panel.matrices(data)
+    # SC estimation
+    sc <- sc_estimate(setup_sc$Y, setup_sc$N0, setup_sc$T0)
+    sc_end <- Sys.time()
+    times_df[i, 3] <- sc_end - sc_start
+    
+    
+    
+    # Start TWFE time
+    twfe_start <- Sys.time()
+    # TWFE estimation
+    twfe_est <- twfe(data, twfe_formula)
+    twfe_end <- Sys.time()
+    times_df[i, 4] <- twfe_end - twfe_start
+    
+
+  }
+  # Store number of observations
+  N <- as.numeric(simulation_params["n_treated"]) + as.numeric(simulation_params["N"])
+  times_df[, 1] = N
+  
+  return(times_df)
+}
+
+
+##### Function to perform ITWP matching ##########
+perform_iptw_matching <- function(data) {
+
+  # Compute overall mean
+  overall_mean <- mean(data$value)
+  # Compute pre-treatment means for treated units
+  treated_means <- df %>% filter(grepl("Treated", Observation) & Time < treatment_period) %>%
+    group_by(Observation) %>% summarize(pre_mean = mean(value))
+  
+  # Compute pre-treatment means for control units
+  control_means <- df %>% filter(!grepl("Treated", Observation) & Time < treatment_period) %>%
+    group_by(Observation) %>% summarize(pre_mean = mean(value))
+  
+  # Compute inverse probability of receiving treatment as distance from overall mean
+  treated_means$iptw <- 1 / abs(treated_means$pre_mean - overall_mean)
+  control_means$iptw <- 1 / abs(control_means$pre_mean - overall_mean)
+  
+  # Perform logistic activation (probability should be between 0 and 1)
+  treated_means$activation <- 1 / (1 + exp(-treated_means$iptw))
+  control_means$activation <- 1 / (1 + exp(-control_means$iptw))
+  
+  # Merge data
+  mean_data <- rbind(treated_means, control_means)
+  merged_data <- merge(data, mean_data, by = "Observation") %>% 
+    select(-pre_mean, -iptw) %>% arrange(Time)
+  
+  # Apply IPTW weights
+  merged_data$value <- merged_data$value * merged_data$activation
+  
+  # Select only weighted data
+  weighted_data <- merged_data %>% select(-activation)
+  
+  # Return data with IPTW weights applied
+  return(weighted_data)
+}
+
+
+
+###################################
+
+df %>% filter(treated == 1 & Time < treatment_period) %>% group_by(Observation) %>% summarize(outcome = mean(value))
+
+df %>% filter(grepl("Treated", Observation) & Time < treatment_period) %>% group_by(Observation) %>% summarize(outcome = mean(value))
+
+
+treated_means <- df %>% filter(!grepl("Treated", Observation) & Time < treatment_period) %>%
+  group_by(Observation) %>% summarize(pre_mean = mean(value))
+
 
 ########## Plotting functions ##########
 
@@ -365,15 +476,19 @@ plot_grouped_simulations <- function(dfs) {
     geom_line(aes(x = Time, y = control_avg, color = "Control mean"), linewidth = 1) +
     geom_line(aes(x = Time, y = treated_avg, color = "Treated mean"), linewidth = 1) +
     geom_vline(xintercept = treatment_period, linetype = "dashed", size = 1.5) +
-    labs(title = "Development of grouped means over all simulations",
+    labs(title = paste0("Development of grouped means using ", iterations, " simulations"),
          x = "Year",
          y = "Dependent variable",
-         color = "Group") +
+         color = "Group",
+         size = 14) +
     theme_minimal() +
     theme(legend.position = "right",
           plot.title = element_text(hjust = 0.5, size = 20, face = "bold"), 
           axis.title = element_text(size = 16, face = "bold"),  
-          axis.text = element_text(size = 14)) +
+          axis.text = element_text(size = 14),
+          legend.text = element_text(size = 16), 
+          legend.title = element_text(size = 16, face = "bold"),
+          legend.title.align = 0.5) +
     scale_color_manual(values = c("Treated mean" = "red", "Control mean" = "black")) #+
   # Set ylim
   #ylim(95, 110)

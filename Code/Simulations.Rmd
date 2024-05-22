@@ -1,0 +1,125 @@
+---
+title: "SDiD Simulations"
+author: "Benjamin Herzberger"
+date: "2024-05-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+source("Functions.R")
+
+# Set up estimators to be used in the process
+estimators = list(did=did_estimate, sc=sc_estimate, sdid=synthdid_estimate)
+
+# Set seed for replicability
+set.seed(123)
+```
+
+# Estimation of Causal effects using simulated data and DiD, SC and SDiD
+
+### Simulations without same trend and treatment effect
+```{r}
+# Set parameter values
+N <- 30 
+T <- 30
+n_treated <- 5
+control_trend <- 0.1
+treated_trend <- 0.1
+treatment_effect <- 1
+treatment_period <- T - 5
+iterations <- 1000
+
+# Collect parameters in list
+treatment_params <- list(N = T, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                         control_trend = control_trend, treated_trend = treated_trend, treatment_effect = treatment_effect)
+
+# Apply simulation
+static_treatment_results <- repeated_simulation(simulation_function = static_treatment_simulation,
+                                     simulation_params = treatment_params, iterations = iterations)
+
+# Visualize data
+a <- plot_grouped_simulations(static_treatment_results$dfs)
+
+# Visualize results
+b <- plot_estimates(static_treatment_results$estimates)
+
+# Compute mean and sd of estimates
+colMeans(static_treatment_results$estimates)
+apply(static_treatment_results$estimates, 2, sd)
+
+ggsave(filename = "static_data_plot.png", plot = a, width = 10, height = 5, units = "in", dpi = 300)
+ggsave(filename = "static_estimates_plot.png", plot = b, width = 10, height = 5, units = "in", dpi = 300)
+```
+
+### Simulations with different trend and treatment effect   
+
+```{r}
+# Set parameter values
+N <- 30 
+T <- 30
+n_treated <- 5
+control_trend <- 0.1
+treated_trend <- 0.2
+treatment_effect <- 1
+treatment_period <- T - 5
+iterations <- 1000
+
+# Collect parameters in list
+treatment_params <- list(N = T, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                         control_trend = control_trend, treated_trend = treated_trend, treatment_effect = treatment_effect)
+
+# Apply simulation
+static_treatment_results <- repeated_simulation(simulation_function = static_treatment_simulation,
+                                     simulation_params = treatment_params, iterations = iterations)
+
+# Visualize data
+c <- plot_grouped_simulations(static_treatment_results$dfs)
+
+# Visualize results
+d <- plot_estimates(static_treatment_results$estimates)
+
+# Compute mean and sd of estimates
+colMeans(static_treatment_results$estimates) 
+apply(static_treatment_results$estimates, 2, sd)
+
+ggsave(filename = "diff_trend_data_plot.png", plot = c, width = 10, height = 5, units = "in", dpi = 300)
+ggsave(filename = "diff_trend_estimates_plot.png", plot = d, width = 10, height = 5, units = "in", dpi = 300)
+
+```
+
+
+### Simulation with violation of parallel trend assumption
+```{r}
+# Set parameter values
+T <- 30
+N <- 30
+n_treated <- 5
+treatment_period <- T - 5
+control_trend <-  0.1
+treated_trend <- 0.3
+treatment_effect <- 1
+iterations <- 1000
+
+# Collect parameters in list
+diff_trend_params <- list(N = T, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                          control_trend = control_trend, treated_trend = treated_trend, treatment_effect = treatment_effect)
+
+# Apply simulation
+diff_trend_results <- repeated_simulation(simulation_function = diff_trend_simulation,
+                                     simulation_params = diff_trend_params, iterations = iterations)
+
+# Visualize data
+e <- plot_grouped_simulations(diff_trend_results$dfs)
+
+# Visualize results
+f <- plot_estimates(diff_trend_results$estimates)
+
+# Compute mean and sd of estimates
+colMeans(diff_trend_results$estimates)
+apply(diff_trend_results$estimates, 2, sd)
+
+
+ggsave(filename = "trend_violation_data_plot.png", plot = e, width = 10, height = 5, units = "in", dpi = 300)
+ggsave(filename = "trend_violation_estimates_plot.png", plot = f, width = 10, height = 5, units = "in", dpi = 300)
+
+```

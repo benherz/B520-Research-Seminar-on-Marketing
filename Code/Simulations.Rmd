@@ -6,120 +6,133 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
+#rm(list=ls())
 source("Functions.R")
 
 # Set up estimators to be used in the process
 estimators = list(did=did_estimate, sc=sc_estimate, sdid=synthdid_estimate)
 
 # Set seed for replicability
-set.seed(123)
+set.seed(100)
+
+# Draw random number between 1 and 1000 (number of iterations)
+index <- round(runif(1, 1, 1000)) # will be used to select one simulation for visualization
+
+# Set up relative path for working directory
+path <- "C:/Users/benny/OneDrive/Studium/Tübingen/DS in B&E/4. Semester SS2024/B520 Research Seminar on Marketing/Code"
 ```
+
 
 # Estimation of Causal effects using simulated data and DiD, SC and SDiD
 
-### Simulations without same trend and treatment effect
+### Assessing the effect of number of pre-treatment periods
 ```{r}
-# Set parameter values
-N <- 30 
-T <- 30
-n_treated <- 5
-control_trend <- 0.1
-treated_trend <- 0.1
-treatment_effect <- 1
-treatment_period <- T - 5
+# For this, we use a sufficiently large number of treated, as well as control units 
+# This analysis is performed first, because we can then select the minimum number
+# of required pre-treatment periods for the analysis of very large sample sizes
+# to save some time. 
+
+N <- 90
+T <- 10
+n_treated <- 10
+pre_control_trend <- 0.1
+pre_treated_trend <- 0.1
+post_control_trend <- 0.1
+post_treated_trend <- 0.1
+treatment_effect <- 2
 iterations <- 1000
 
-# Collect parameters in list
-treatment_params <- list(N = T, T = T, n_treated = n_treated, treatment_period = treatment_period,
-                         control_trend = control_trend, treated_trend = treated_trend, treatment_effect = treatment_effect)
+# Setting a lower value than 3 is not possible 
+treatment_periods = c(3, 4, 5, 6, 7, 8, 9, 10)
 
-# Apply simulation
-static_treatment_results <- repeated_simulation(simulation_function = static_treatment_simulation,
-                                     simulation_params = treatment_params, iterations = iterations)
-
-# Visualize data
-a <- plot_grouped_simulations(static_treatment_results$dfs)
-
-# Visualize results
-b <- plot_estimates(static_treatment_results$estimates)
-
-# Compute mean and sd of estimates
-colMeans(static_treatment_results$estimates)
-apply(static_treatment_results$estimates, 2, sd)
-
-ggsave(filename = "static_data_plot.png", plot = a, width = 10, height = 5, units = "in", dpi = 300)
-ggsave(filename = "static_estimates_plot.png", plot = b, width = 10, height = 5, units = "in", dpi = 300)
+for(treatment_period in treatment_periods){
+  simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                           pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                           post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                           treatment_effect = treatment_effect)
+  # Simulation & estimation
+  results <- repeated_simulation(simulation_function = treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations)
+  estimates <- results$estimates
+  df <- results$dfs[[index]]
+  
+  write.csv(df, paste0(path, "/Output/Data/df_treatment_period_", treatment_period, ".csv"))
+  write.csv(estimates, paste0(path, "/Output/Data/estimates_treatment_period_", treatment_period,".csv"))
+  
+  plot_estimates(estimates) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_treatment_period_", treatment_period, ".png"), width = 10, height = 5, units = "in", dpi = 300)
+  plot_grouped_simulations(results$dfs) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/data_plot_treatment_period", treatment_period, ".png"), width = 10, height = 5, units = "in", dpi = 300)
+}
 ```
 
-### Simulations with different trend and treatment effect   
 
+### Assessing the effect of number of treated and control units
 ```{r}
-# Set parameter values
-N <- 30 
-T <- 30
-n_treated <- 5
-control_trend <- 0.1
-treated_trend <- 0.2
-treatment_effect <- 1
-treatment_period <- T - 5
-iterations <- 1000
+# Additional parameters
+# Number of treated units is designed to always be 20% of the number of control units
+# to ensure comparability across simulations.
+N <- c(5, 10, 50, 100, 500, 1000, 5000)
+n_treated <- c(1, 2, 10, 20, 100, 200, 1000)
 
-# Collect parameters in list
-treatment_params <- list(N = T, T = T, n_treated = n_treated, treatment_period = treatment_period,
-                         control_trend = control_trend, treated_trend = treated_trend, treatment_effect = treatment_effect)
+for(i in 1:length(N)){
+  simulation_params <- list(N = N[i], T = T, n_treated = n_treated[i], treatment_period = treatment_period,
+                           pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                           post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                           treatment_effect = treatment_effect)
+  # Simulation & estimation
+  results <- repeated_simulation(simulation_function = treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations)
+  estimates <- results$estimates
+  df <- results$dfs[[index]]
+  
+  write.csv(df, paste0(path, "/Output/Data/df_N_", N[i], "_n_treated_", n_treated[i], ".csv"))
+  write.csv(estimates, paste0(path, "/Output/Data/estimates_N_", N[i], "_n_treated_", n_treated[i], ".csv"))
+  
+  plot_estimates(estimates) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_N_", N[i], "_n_treated_", n_treated[i], ".png"), width = 10, height = 5, units = "in", dpi = 300)
+  plot_grouped_simulations(results$dfs) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/data_plot_N_", N[i], "_n_treated_", n_treated[i], ".png"), width = 10, height = 5, units = "in", dpi = 300)
+}
+  print(paste0("Finished simulation for N = ", N[i], " and n_treated = ", n_treated[i]))
+```
 
-# Apply simulation
-static_treatment_results <- repeated_simulation(simulation_function = static_treatment_simulation,
-                                     simulation_params = treatment_params, iterations = iterations)
 
-# Visualize data
-c <- plot_grouped_simulations(static_treatment_results$dfs)
+### Assessing the effect of very large number of treated and control units
+```{r}
+# Set T and treatment period to lowest possible value
 
-# Visualize results
-d <- plot_estimates(static_treatment_results$estimates)
+T <- 3
+treatment_period <- 3
+N <- c(10000, 50000, 100000, 500000, 1000000, 3000000)
+n_treated <- c(2000, 10000, 20000, 100000, 200000, 600000)
 
-# Compute mean and sd of estimates
-colMeans(static_treatment_results$estimates) 
-apply(static_treatment_results$estimates, 2, sd)
-
-ggsave(filename = "diff_trend_data_plot.png", plot = c, width = 10, height = 5, units = "in", dpi = 300)
-ggsave(filename = "diff_trend_estimates_plot.png", plot = d, width = 10, height = 5, units = "in", dpi = 300)
-
+for(i in 1:length(N)){
+  simulation_params <- list(N = N[i], T = T, n_treated = n_treated[i], treatment_period = treatment_period,
+                           pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                           post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                           treatment_effect = treatment_effect)
+  # Simulation & estimation
+  results <- repeated_simulation(simulation_function = treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations)
+  estimates <- results$estimates
+  df <- results$dfs[[index]]
+  
+  write.csv(df, paste0(path, "/Output/Data/df_N_", N[i], "_n_treated_", n_treated[i], ".csv"))
+  write.csv(estimates, paste0(path, "/Output/Data/estimates_N_", N[i], "_n_treated_", n_treated[i], ".csv"))
+  
+  plot_estimates(estimates) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_N_", N[i], "_n_treated_", n_treated[i], ".png"), width = 10, height = 5, units = "in", dpi = 300)
+  plot_grouped_simulations(results$dfs) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/data_plot_N_", N[i], "_n_treated_", n_treated[i], ".png"), width = 10, height = 5, units = "in", dpi = 300)
+}
+  print(paste0("Finished simulation for N = ", N[i], " and n_treated = ", n_treated[i]))
 ```
 
 
 ### Simulation with violation of parallel trend assumption
 ```{r}
-# Set parameter values
-T <- 30
-N <- 30
-n_treated <- 5
-treatment_period <- T - 5
-control_trend <-  0.1
-treated_trend <- 0.3
-treatment_effect <- 1
-iterations <- 1000
-
-# Collect parameters in list
-diff_trend_params <- list(N = T, T = T, n_treated = n_treated, treatment_period = treatment_period,
-                          control_trend = control_trend, treated_trend = treated_trend, treatment_effect = treatment_effect)
-
-# Apply simulation
-diff_trend_results <- repeated_simulation(simulation_function = diff_trend_simulation,
-                                     simulation_params = diff_trend_params, iterations = iterations)
-
-# Visualize data
-e <- plot_grouped_simulations(diff_trend_results$dfs)
-
-# Visualize results
-f <- plot_estimates(diff_trend_results$estimates)
-
-# Compute mean and sd of estimates
-colMeans(diff_trend_results$estimates)
-apply(diff_trend_results$estimates, 2, sd)
 
 
-ggsave(filename = "trend_violation_data_plot.png", plot = e, width = 10, height = 5, units = "in", dpi = 300)
-ggsave(filename = "trend_violation_estimates_plot.png", plot = f, width = 10, height = 5, units = "in", dpi = 300)
 
 ```

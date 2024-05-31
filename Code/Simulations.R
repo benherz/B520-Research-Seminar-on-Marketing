@@ -23,12 +23,32 @@ unlist(estimates)
 # Run TWFE as a check
 twfe(og_data, twfe_formula)
 
-a = synthdid_estimate(setup_og$Y, setup_og$N0, setup_og$T0)
-b = sc_estimate(setup_og$Y, setup_og$N0, setup_og$T0)
-c = did_estimate(setup_og$Y, setup_og$N0, setup_og$T0)
-a
-b
-c
+##### Testing area #####
+N = 20
+T = 20
+n_treated = 5
+treatment_period = 10
+control_trend = 0.1
+treated_trend = 0.1
+treatment_effect = 2
+iterations = 100
+
+static_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period, 
+                      control_trend = control_trend, treated_trend = treated_trend, treatment_effect = treatment_effect)
+
+results <- repeated_simulation_iptw(simulation_function = static_treatment_simulation,
+                                    simulation_params = static_params, iterations = iterations)
+
+
+
+plot_grouped_simulations(results$dfs)
+plot_estimates(results$estimates)
+
+##################
+df <- static_treatment_simulation(N = 20, T = 20, n_treated = 5, treatment_period = 10, 
+                       control_trend = 0, treated_trend = 0.1, treatment_effect = 2)
+write.csv(df, "static_treatment_simulation.csv")
+
 
 ###################################
 # Set number of simulation-and-estimation iterations
@@ -395,24 +415,33 @@ df <- heterogeneous_dynamic_simulation(N = 1, T = 30, n_treated = 20,
       treatment_period = 10, control_trend = 0.1, treated_trend = 0.1, treatment_effect = 1)
 
 
-plot_individual(df)
+##### Simulation with IPTW matching #####
 
+# Set parameter values
+T <- 30
+N <- 30
+n_treated <- 5
+treatment_period <- T -1
+control_trend <- 0.1
+treated_trend <- 0.5
+treatment_effect <- 1
+iterations <- 100
 
-df <- heterogeneous_static_simulation(N = 1, T = 30, n_treated = 20, 
-      treatment_period = 10, control_trend = 0.1, treated_trend = 0.1, treatment_effect = 1)
-df2 <- heterogeneous_dynamic_simulation(N = 1, T = 30, n_treated = 20, 
-      treatment_period = 10, control_trend = 0.1, treated_trend = 0.1, treatment_effect = 1)
-df3 <- heterogeneous_dynamic_unit_simulation(N = 1, T = 30, n_treated = 20, 
-      treatment_period = 10, control_trend = 0.1, treated_trend = 0.1, treatment_effect = 1)
-plot_individual(df)
-plot2 <- plot_individual(df2)
-plot3 <- plot_individual(df3)
-plot_individual(df3)
+# Collect parameters in list
+iptw_params <- list(N = T, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                          control_trend = control_trend, treated_trend = treated_trend, treatment_effect = treatment_effect)
 
-plot2
-plot3
+# Apply simulation
+iptw_results <- repeated_simulation_iptw(simulation_function = diff_trend_simulation,
+                                     simulation_params = iptw_params, iterations = iterations)
 
-treatment_period <- 10
-df <- diff_trend_simulation(N = 100, T = 50, n_treated = 30, 
-      treatment_period = 10, control_trend = 0.1, treated_trend = 0.1, treatment_effect = 1)
-plot_grouped(df)
+# Visualize data
+plot_grouped_simulations(iptw_results$dfs)
+
+# Visualize results
+plot_estimates(iptw_results$estimates)
+
+# Compute mean and sd of estimates
+colMeans(iptw_results$estimates)
+apply(iptw_results$estimates, 2, sd)
+

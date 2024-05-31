@@ -104,3 +104,196 @@ for (i in 1:iterations) {
   colnames(estimates_df) <- c("did", "sc", "sdid")
   dfs[[i]] = data
 }
+
+
+
+
+
+
+
+##### Weird function for iptw matching 
+perform_iptw_matching <- function(data) {
+  
+  # Conclude treatment period
+  treatment_period <- min(data$Time[data$treated == 1])
+  
+  # Compute overall mean
+  overall_mean <- mean(data$value)
+  
+  # Compute pre-treatment means for treated units
+  treated_means <- data %>% filter(grepl("Treated", Observation) & Time < treatment_period) %>%
+    group_by(Observation) %>% summarize(pre_mean = mean(value))
+  
+  # Compute pre-treatment means for control units
+  control_means <- data %>% filter(!grepl("Treated", Observation) & Time < treatment_period) %>%
+    group_by(Observation) %>% summarize(pre_mean = mean(value))
+  
+  # Compute inverse probability of receiving treatment as distance from overall mean
+  treated_means$iptw <- 1 / abs(treated_means$pre_mean - overall_mean)
+  control_means$iptw <- 1 / (1- abs(control_means$pre_mean - overall_mean))
+  
+  # Perform logistic activation (probability should be between 0 and 1)
+  treated_means$activation <- 1 / (1 + exp(-treated_means$iptw))
+  control_means$activation <- 1 / (1 + exp(-control_means$iptw))
+  
+  # Merge data
+  mean_data <- rbind(treated_means, control_means)
+  merged_data <- merge(data, mean_data, by = "Observation") #%>% 
+  #select(-pre_mean, -iptw) 
+  
+  # Apply IPTW weights
+  merged_data$value <- merged_data$value * merged_data$activation
+  
+  # Select only weighted data
+  weighted_data <- merged_data# %>% select(-activation)
+  
+  # Return data with IPTW weights applied
+  return(weighted_data)
+}
+
+test <- perform_iptw_matching(data)
+
+
+
+
+
+
+
+
+
+
+
+###################################
+# Code to test how population sizes affect estimates
+##### N = 10, n_Treated = 2 #####
+N <- 10
+n_treated <- 2
+simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                          pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                          post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                          treatment_effect = treatment_effect)
+# Simulation & estimation
+results_10_2 <- repeated_simulation(simulation_function = treatment_simulation,
+                                    simulation_params = simulation_params, iterations = iterations)
+estimates_10_2 <- results_10_2$estimates
+df_10_2 <- results_10_2$dfs[[index]]
+
+write.csv(df_10_2, paste0(path, "/Output/Data/df_10_2.csv"))
+write.csv(estimates_10_2, paste0(path, "/Output/Data/estimates_10_2.csv"))
+
+plot_estimates(estimates_10_2) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_10_2.png"), width = 10, height = 5, units = "in", dpi = 300)
+plot_grouped_simulations(results_10_2$dfs) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/data_plot_10_2.png"), width = 10, height = 5, units = "in", dpi = 300)
+
+
+##### N = 50, n_Treated = 10 #####
+N <- 50
+n_treated <- 10
+simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                          pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                          post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                          treatment_effect = treatment_effect)
+# Simulation & estimation
+results_50_10 <- repeated_simulation(simulation_function = treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations)
+estimates_50_10 <- results_50_10$estimates
+df_50_10 <- results_50_10$dfs[[index]]
+
+write.csv(df_50_10, paste0(path, "/Output/Data/df_50_10.csv"))
+write.csv(estimates_50_10, paste0(path, "/Output/Data/estimates_50_10.csv"))
+
+plot_estimates(estimates_50_10) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_50_10.png"), width = 10, height = 5, units = "in", dpi = 300)
+plot_grouped_simulations(results_50_10$dfs) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/data_plot_50_10.png"), width = 10, height = 5, units = "in", dpi = 300)
+
+
+
+### N = 100, n_Treated = 20 ###
+N <- 100
+n_treated <- 20
+simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                          pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                          post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                          treatment_effect = treatment_effect)
+# Simulation & estimation
+results_100_20 <- repeated_simulation(simulation_function = treatment_simulation,
+                                      simulation_params = simulation_params, iterations = iterations)
+estimates_100_20 <- results_100_20$estimates
+df_100_20 <- results_100_20$dfs[[index]]
+
+write.csv(df_100_20, paste0(path, "/Output/Data/df_100_20.csv"))
+write.csv(estimates_100_20, paste0(path, "/Output/Data/estimates_100_20.csv"))
+
+plot_estimates(estimates_100_20) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_100_20.png"), width = 10, height = 5, units = "in", dpi = 300)
+plot_grouped_simulations(results_100_20$dfs) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/data_plot_100_20.png"), width = 10, height = 5, units = "in", dpi = 300)
+
+
+
+### N = 500, n_Treated = 100 ###
+N <- 500
+n_treated <- 100
+simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                          pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                          post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                          treatment_effect = treatment_effect)
+# Simulation & estimation
+results_500_100 <- repeated_simulation(simulation_function = treatment_simulation,
+                                       simulation_params = simulation_params, iterations = iterations)
+estimates_500_100 <- results_500_100$estimates
+df_500_100 <- results_500_100$dfs[[index]]
+
+write.csv(df_500_100, paste0(path, "/Output/Data/df_500_100.csv"))
+write.csv(estimates_500_100, paste0(path, "/Output/Data/estimates_500_100.csv"))
+
+plot_estimates(estimates_500_100) %>% 
+  ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_500_100.png"), width = 10, height = 5, units = "in", dpi = 300)
+plot_grouped_simulations(results_500_100$dfs) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/data_plot_500_100.png"), width = 10, height = 5, units = "in", dpi = 300)
+
+### N = 1000, n_Treated = 200 ###
+N <- 1000
+n_treated <- 200
+simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                          pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                          post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                          treatment_effect = treatment_effect)
+# Simulation & estimation
+results_1000_200 <- repeated_simulation(simulation_function = treatment_simulation,
+                                        simulation_params = simulation_params, iterations = iterations)
+estimates_1000_200 <- results_1000_200$estimates
+df_1000_200 <- results_1000_200$dfs[[index]]
+
+write.csv(df_1000_200, paste0(path, "/Output/Data/df_1000_200.csv"))
+write.csv(estimates_1000_200, paste0(path, "/Output/Data/estimates_1000_200.csv"))
+
+plot_estimates(estimates_1000_200) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_1000_200.png"), width = 10, height = 5, units = "in", dpi = 300)
+plot_grouped_simulations(results_1000_200$dfs) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/data_plot_1000_200.png"), width = 10, height = 5, units = "in", dpi = 300)
+
+
+### N = 5000, n_Treated = 1000 ###
+N <- 5000
+n_treated <- 1000
+
+simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                          pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                          post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                          treatment_effect = treatment_effect)
+# Simulation & estimation
+results_5000_1000 <- repeated_simulation(simulation_function = treatment_simulation,
+                                         simulation_params = simulation_params, iterations = iterations)
+estimates_5000_1000 <- results_5000_1000$estimates
+df_5000_1000 <- results_5000_1000$dfs[[index]]
+
+write.csv(df_5000_1000, paste0(path, "/Output/Data/df_5000_1000.csv"))
+write.csv(estimates_5000_1000, paste0(path, "/Output/Data/estimates_5000_1000.csv"))
+
+plot_estimates(estimates_5000_1000) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_5000_1000.png"), width = 10, height = 5, units = "in", dpi = 300)
+plot_grouped_simulations(results_5000_1000$dfs) %>%
+  ggsave(filename = paste0(path, "/Output/Plots/data_plot_5000_1000.png"), width = 10, height = 5, units = "in", dpi = 300)

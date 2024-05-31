@@ -40,64 +40,57 @@ twfe <- function(data, formula) {
 
 ########## Simulation functions ##########
 
-### Function with mean zero innovations and linear time trends
-trend_simulation <- function(N, T, n_treated, treatment_period, control_trend, treated_trend) {
-  # Set up dataframe with N rows and T columns
-  df <- data.frame(matrix(ncol = T, nrow = N))
-  # Set up separate dataframe for treated units
-  treated <- data.frame(matrix(ncol = T, nrow = n_treated))
-  # Name dfs correctly
-  colnames(df) <- paste(1:T)
-  rownames(df) <- paste("Observation", 1:N, sep = "")
-  colnames(treated) <- paste(1:T)
-  rownames(treated) <- paste("Treated", 1:n_treated, sep = "")
-  # Draw N random draws as starting points
-  df[,1] <- rnorm(N, 0, 1)
-  treated[,1] <- rnorm(n_treated, 0, 1)
-  # Fill rest of columns as previous value + upwards time-trend added (%) and random draw
-  for (i in 2:T) {
-    df[,i] <- df[,i-1] + control_trend + rnorm(N, 0, 1)
-    treated[,i] <- treated[,i-1] + treated_trend + rnorm(n_treated, 0, 1)
-  }
-  
-  # Combine dfs
-  df <- rbind(df, treated)
-  # Pivot to long format
-  df <- df %>% mutate(Observation = rownames(df)) %>% melt(id.vars = "Observation") %>%
-    rename(Time = variable)  %>% arrange(Time)
-  df$Time <- as.integer(df$Time)
-  # Add treatment indicator period
-  df$treated <- ifelse(df$Observation %in% rownames(treated) & as.numeric(df$Time) >= treatment_period, 1, 0) 
-  df$treated <- as.integer(df$treated)
-  
-  return(df)
-}
+##### Function to simulate data with mean-zero innovations, different/identical 
+### pre-/post trends and static/dynamic homogeneous treatment: 
 
-### Function with mean zero innovations, treatment and violation of parallel-trends-assumption
-diff_trend_simulation <- function(N, T, n_treated, treatment_period, control_trend, treated_trend, treatment_effect) {
-  # Set up dataframe with N rows and T columns
-  df <- data.frame(matrix(ncol = T, nrow = N))
-  # Set up separate dataframe for treated units
+### Inputs:
+# N: Number of control units
+# T: Number of time periods
+# n_treated: Number of treated units
+# treatment_period: Period in which treatment is applied
+# pre_control_trend: Pre-treatment trend for control units
+# pre_treated_trend: Pre-treatment trend for treated units
+# post_control_trend: Post-treatment trend for control units
+# post_treated_trend: Post-treatment trend for treated units
+# treatment_effect: Treatment effect
+# effect: Type of treatment effect (static or dynamic) as string input
+# treated_mean: Mean value of initial random draw for treated units -> IPTW
+
+treatment_simulation <- function(N, T, n_treated, treatment_period, pre_control_trend, pre_treated_trend,
+                                        post_control_trend, post_treated_trend, treatment_effect, effect = "static", treated_mean = 0) {
+  # Set up data frame with N rows and T columns
+  control <- data.frame(matrix(ncol = T, nrow = N))
+  # Set up separate data frame for treated units
   treated <- data.frame(matrix(ncol = T, nrow = n_treated))
   # Name dfs correctly
-  colnames(df) <- paste(1:T)
-  rownames(df) <- paste("Observation", 1:N, sep = "")
+  colnames(control) <- paste(1:T)
+  rownames(control) <- paste("Observation", 1:N, sep = "")
   colnames(treated) <- paste(1:T)
   rownames(treated) <- paste("Treated", 1:n_treated, sep = "")
   # Draw N random draws as starting points
-  df[,1] <- rnorm(N, 0, 1)
-  treated[,1] <- rnorm(n_treated, 0, 1)
-  # Fill rest of columns as previous value + time-trend added (%) and random draw
+  control[,1] <- rnorm(N, 0, 1)
+  treated[,1] <- rnorm(n_treated, treated_mean, 1)
+  # Fill rest of columns as previous value + upwards time-trend added and random draw and if treated, add treatment effect
   for (i in 2:T) {
-    df[,i] <- df[,i-1] + rnorm(N, 0, 1) +
-      ifelse(i >= treatment_period, control_trend, 0)
+    # Control units: Always add mean zero innovation
+    control[,i] <- control[,i-1] + rnorm(N, 0, 1) +
+      # If treatment is not yet applied, add pre-treatment control trend
+      ifelse(i < treatment_period, pre_control_trend, 0) +
+      # If treatment has been applied, add post-treatment control trend
+      ifelse(i >= treatment_period, post_control_trend, 0)
+    # Treated units: Always add mean zero innovation
     treated[,i] <- treated[,i-1] + rnorm(n_treated, 0, 1) +
-      ifelse(i >= treatment_period, treated_trend, 0) +
-      ifelse(i == treatment_period, treatment_effect, 0)
+      # If treatment is not yet applied, add pre-treatment treated trend
+      ifelse(i < treatment_period, pre_treated_trend, 0) +
+      # if we are in treatment period, add treatment effect depending on effect type
+      ifelse(effect == "static" && i == treatment_period, treatment_effect, 0) +
+      ifelse(effect == "dynamic" && i >= treatment_period, treatment_effect, 0) +
+      # If we are in or after treatment period, add post-treatment treated trend
+      ifelse(i >= treatment_period, post_treated_trend, 0) 
+      
   }
-  
   # Combine dfs
-  df <- rbind(df, treated)
+  df <- rbind(control, treated)
   # Pivot to long format
   df <- df %>% mutate(Observation = rownames(df)) %>% melt(id.vars = "Observation") %>%
     rename(Time = variable)  %>% arrange(Time)
@@ -109,29 +102,52 @@ diff_trend_simulation <- function(N, T, n_treated, treatment_period, control_tre
   return(df)
 }
 
-### Function with mean-zero innovations, linear time trend and static (one-time) treatment effect
-static_treatment_simulation <- function(N, T, n_treated, treatment_period, control_trend,
-                                 treated_trend, treatment_effect) {
-  # Set up dataframe with N rows and T columns
-  df <- data.frame(matrix(ncol = T, nrow = N))
-  # Set up separate dataframe for treated units
+
+
+##### Function to simulate data with mean-zero innovations, different/identical 
+### pre-/post trends and static/dynamic UNIT-SPECIFIC, time-constant treatment effects
+
+### Additional inputs:
+# deviation: Standard deviation of the treatment effect distribution
+# can be understood as degree of heterogeneity in treatment effects
+
+unit_heterogeneous_treatment_simulation <- function(N, T, n_treated, treatment_period, pre_control_trend, pre_treated_trend,
+                                 post_control_trend, post_treated_trend, treatment_effect, effect = "static", deviation = 1, treated_mean = 0) {
+  # Set up data frame with N rows and T columns
+  control <- data.frame(matrix(ncol = T, nrow = N))
+  # Set up separate data frame for treated units
   treated <- data.frame(matrix(ncol = T, nrow = n_treated))
   # Name dfs correctly
-  colnames(df) <- paste(1:T)
-  rownames(df) <- paste("Observation", 1:N, sep = "")
+  colnames(control) <- paste(1:T)
+  rownames(control) <- paste("Observation", 1:N, sep = "")
   colnames(treated) <- paste(1:T)
   rownames(treated) <- paste("Treated", 1:n_treated, sep = "")
   # Draw N random draws as starting points
-  df[,1] <- rnorm(N, 0, 1)
-  treated[,1] <- rnorm(n_treated, 0, 1)
+  control[,1] <- rnorm(N, 0, 1)
+  treated[,1] <- rnorm(n_treated, treated_mean, 1)
+  # Draw vector of heterogeneous treatment effects
+  heterogeneity <- rnorm(n_treated, treatment_effect, deviation)
   # Fill rest of columns as previous value + upwards time-trend added and random draw and if treated, add treatment effect
   for (i in 2:T) {
-    df[,i] <- df[,i-1] + control_trend + rnorm(N, 0, 1)
-    treated[,i] <- treated[,i-1] + treated_trend + rnorm(n_treated, 0, 1) +
-      ifelse(i == treatment_period, treatment_effect, 0)
+    # Control units: Always add mean zero innovation
+    control[,i] <- control[,i-1] + rnorm(N, 0, 1) +
+      # If treatment is not yet applied, add pre-treatment control trend
+      ifelse(i < treatment_period, pre_control_trend, 0) +
+      # If treatment has been applied, add post-treatment control trend
+      ifelse(i >= treatment_period, post_control_trend, 0)
+    # Treated units: Always add mean zero innovation
+    treated[,i] <- treated[,i-1] + rnorm(n_treated, 0, 1) +
+      ifelse(i < treatment_period, pre_treated_trend, 0) +
+      # if we are in treatment period, add treatment effect depending on effect type
+      # Careful to disentangle if statement from vectorized operation!!!!!
+      if (effect == "static" & i == treatment_period) heterogeneity else 0 +
+      if (effect == "dynamic" & i >= treatment_period) heterogeneity else 0 +
+      ifelse(i >= treatment_period, post_treated_trend, 0)
+    
+    
   }
   # Combine dfs
-  df <- rbind(df, treated)
+  df <- rbind(control, treated)
   # Pivot to long format
   df <- df %>% mutate(Observation = rownames(df)) %>% melt(id.vars = "Observation") %>%
     rename(Time = variable)  %>% arrange(Time)
@@ -143,29 +159,44 @@ static_treatment_simulation <- function(N, T, n_treated, treatment_period, contr
   return(df)
 }
 
-### Function with mean-zero innovations, linear time trend and dynamic treatment effect
-dynamic_treatment_simulation <- function(N, T, n_treated, treatment_period, control_trend,
-                                        treated_trend, treatment_effect) {
-  # Set up dataframe with N rows and T columns
-  df <- data.frame(matrix(ncol = T, nrow = N))
-  # Set up separate dataframe for treated units
+
+##### Function to simulate data with mean-zero innovations, different/identical 
+### pre-/post trends and static/dynamic treatment effects thar are heterogeneous
+### on unit AND time level
+
+heterogeneous_treatment_simulation <- function(N, T, n_treated, treatment_period, pre_control_trend, pre_treated_trend,
+                                 post_control_trend, post_treated_trend, treatment_effect, effect = "static", deviation, treated_mean = 0) {
+  # Set up data frame with N rows and T columns
+  control <- data.frame(matrix(ncol = T, nrow = N))
+  # Set up separate data frame for treated units
   treated <- data.frame(matrix(ncol = T, nrow = n_treated))
   # Name dfs correctly
-  colnames(df) <- paste(1:T)
-  rownames(df) <- paste("Observation", 1:N, sep = "")
+  colnames(control) <- paste(1:T)
+  rownames(control) <- paste("Observation", 1:N, sep = "")
   colnames(treated) <- paste(1:T)
   rownames(treated) <- paste("Treated", 1:n_treated, sep = "")
   # Draw N random draws as starting points
-  df[,1] <- rnorm(N, 0, 1)
-  treated[,1] <- rnorm(n_treated, 0, 1)
+  control[,1] <- rnorm(N, 0, 1)
+  treated[,1] <- rnorm(n_treated, treated_mean, 1)
   # Fill rest of columns as previous value + upwards time-trend added and random draw and if treated, add treatment effect
   for (i in 2:T) {
-    df[,i] <- df[,i-1] + control_trend + rnorm(N, 0, 1)
-    treated[,i] <- treated[,i-1] + treated_trend + rnorm(n_treated, 0, 1) +
-      ifelse(i >= treatment_period, treatment_effect, 0)
+    # Control units: Always add mean zero innovation
+    control[,i] <- control[,i-1] + rnorm(N, 0, 1) +
+      # If treatment is not yet applied, add pre-treatment control trend
+      ifelse(i < treatment_period, pre_control_trend, 0) +
+      # If treatment has been applied, add post-treatment control trend
+      ifelse(i >= treatment_period, post_control_trend, 0)
+    # Treated units: Always add mean zero innovation
+    treated[,i] <- treated[,i-1] + rnorm(n_treated, 0, 1) +
+      ifelse(i < treatment_period, pre_treated_trend, 0) +
+      # if we are in treatment period, add treatment effect depending on effect type
+      if (effect == "static" & i == treatment_period) rnorm(n_treated, treatment_effect, deviation) else 0 +
+      if (effect == "dynamic" & i >= treatment_period) rnorm(n_treated, treatment_effect, deviation) else 0 +
+      # If we are in or after treatment period, add post-treatment treated trend
+      ifelse(i >= treatment_period, post_treated_trend, 0)
   }
   # Combine dfs
-  df <- rbind(df, treated)
+  df <- rbind(control, treated)
   # Pivot to long format
   df <- df %>% mutate(Observation = rownames(df)) %>% melt(id.vars = "Observation") %>%
     rename(Time = variable)  %>% arrange(Time)
@@ -178,124 +209,73 @@ dynamic_treatment_simulation <- function(N, T, n_treated, treatment_period, cont
 }
 
 
-### Function to simulate data with mean-zero innovations and heterogenuous, static treatment effects
-heterogeneous_static_simulation <- function(N, T, n_treated, treatment_period, control_trend,
-                                 treated_trend, treatment_effect) {
-  # Set up dataframe with N rows and T columns
-  df <- data.frame(matrix(ncol = T, nrow = N))
-  # Set up separate dataframe for treated units
-  treated <- data.frame(matrix(ncol = T, nrow = n_treated))
-  # Name dfs correctly
-  colnames(df) <- paste(1:T)
-  rownames(df) <- paste("Observation", 1:N, sep = "")
-  colnames(treated) <- paste(1:T)
-  rownames(treated) <- paste("Treated", 1:n_treated, sep = "")
-  # Draw N random draws as starting points
-  df[,1] <- rnorm(N, 0, 1)
-  treated[,1] <- rnorm(n_treated, 0, 1)
-  # Fill rest of columns as previous value + time-trend added + random draw and if treated, add heterogenuous treatment effect
-  for (i in 2:T) {
-    df[,i] <- df[,i-1] + control_trend + rnorm(N, 0, 1)
-    treated[,i] <- treated[,i-1] + treated_trend + rnorm(n_treated, 0, 1) +
-      ifelse(i == treatment_period, rnorm(n_treated, treatment_effect, 1), 0)
-  }
+########## Helper functions ##########
 
-  # Combine dfs
-  df <- rbind(df, treated)
-  # Pivot to long format
-  df <- df %>% mutate(Observation = rownames(df)) %>% melt(id.vars = "Observation") %>%
-    rename(Time = variable)  %>% arrange(Time)
-  df$Time <- as.integer(df$Time)
-  # Add treatment indicator period
-  df$treated <- ifelse(df$Observation %in% rownames(treated) & as.numeric(df$Time) >= treatment_period, 1, 0) 
-  df$treated <- as.integer(df$treated)
+##### Function to perform ITWP matching ##########
+perform_iptw_matching <- function(data) {
   
-  return(df)
+  # Identify the treatment period
+  treatment_period <- min(data$Time[data$treated == 1])
+  
+  # Compute pre-treatment means 
+  pre_treatment_means <- data %>%
+    filter(Time < treatment_period) %>%
+    group_by(Observation) %>%
+    summarize(pre_mean = mean(value))
+  
+  # Merge pre-treatment means with the original data
+  merged_data <- merge(data, pre_treatment_means, by = "Observation")
+  
+  # Fit logistic regression to calculate propensity scores based on pre-treatment means
+  model <- glm(treated ~ pre_mean, data = merged_data, family = binomial())
+  merged_data$propensity_score <- predict(model, type = "response")
+  
+  # Compute IPTW weights
+  merged_data <- merged_data %>%
+    mutate(weight = ifelse(grepl("Treated", Observation), 1 / propensity_score, 1 / (1 - propensity_score)))
+  merged_data <- merged_data %>%
+    mutate(weight = ifelse(treated == 1, 1 / propensity_score, 1 / (1 - propensity_score)))
+  
+  
+  # Compute weighted observations
+  merged_data <- merged_data %>%
+    mutate(weighted_value = value * weight)
+  
+  final_df <- merged_data %>% select(Observation, Time, weighted_value, treated) %>%
+    rename(value = weighted_value) %>% arrange(Time)
+  
+  # Return data with IPTW weights applied
+  return(final_df)
 }
 
 
-
-### Function to simulate data with mean-zero innovations and heterogenuous, dynamic treatment effects
-heterogeneous_dynamic_simulation <- function(N, T, n_treated, treatment_period, control_trend,
-                                            treated_trend, treatment_effect) {
-  # Set up dataframe with N rows and T columns
-  df <- data.frame(matrix(ncol = T, nrow = N))
-  # Set up separate dataframe for treated units
-  treated <- data.frame(matrix(ncol = T, nrow = n_treated))
-  # Name dfs correctly
-  colnames(df) <- paste(1:T)
-  rownames(df) <- paste("Observation", 1:N, sep = "")
-  colnames(treated) <- paste(1:T)
-  rownames(treated) <- paste("Treated", 1:n_treated, sep = "")
-  # Draw N random draws as starting points
-  df[,1] <- rnorm(N, 0, 1)
-  treated[,1] <- rnorm(n_treated, 0, 1)
-  # Fill rest of columns as previous value + time-trend added + random draw and if treated, add heterogenuous treatment effect
-  for (i in 2:T) {
-    df[,i] <- df[,i-1] + control_trend + rnorm(N, 0, 1)
-    treated[,i] <- treated[,i-1] + treated_trend + rnorm(n_treated, 0, 1) +
-      ifelse(i >= treatment_period, rnorm(n_treated, treatment_effect, 1), 0)
-  }
-  
-  # Combine dfs
-  df <- rbind(df, treated)
-  # Pivot to long format
-  df <- df %>% mutate(Observation = rownames(df)) %>% melt(id.vars = "Observation") %>%
-    rename(Time = variable)  %>% arrange(Time)
-  df$Time <- as.integer(df$Time)
-  # Add treatment indicator period
-  df$treated <- ifelse(df$Observation %in% rownames(treated) & as.numeric(df$Time) >= treatment_period, 1, 0) 
-  df$treated <- as.integer(df$treated)
-  
-  return(df)
+##### Function to compute dynamic (accumulated) treatment effect #####
+# Only works for homogeneous treatment effects
+dynamic_treatment_effect <- function(treatment_effect, treatment_period, T) {
+  # Define the number of periods after treatment
+  num_periods <- T - treatment_period + 1
+  # Compute the dynamic treatment effect using vectorized operations
+  total_effect <- sum(treatment_effect * (1:num_periods))
+  return(total_effect/num_periods)
 }
 
 
-### Function to simulate data with mean-zero innovations and heterogenuous, dynamic unit-specific treatment effects
-heterogeneous_dynamic_unit_simulation <- function(N, T, n_treated, treatment_period, control_trend,
-                                             treated_trend, treatment_effect) {
-  # Set up dataframe with N rows and T columns
-  df <- data.frame(matrix(ncol = T, nrow = N))
-  # Set up separate dataframe for treated units
-  treated <- data.frame(matrix(ncol = T, nrow = n_treated))
-  # Name dfs correctly
-  colnames(df) <- paste(1:T)
-  rownames(df) <- paste("Observation", 1:N, sep = "")
-  colnames(treated) <- paste(1:T)
-  rownames(treated) <- paste("Treated", 1:n_treated, sep = "")
-  # Draw N random draws as starting points
-  df[,1] <- rnorm(N, 0, 1)
-  treated[,1] <- rnorm(n_treated, 0, 1)
-  # Draw vector of hetrogeneous treatment effects
-  heterogeneity <- rnorm(n_treated, treatment_effect, 1)
-  # Fill rest of columns as previous value + time-trend added + random draw and if treated, add heterogenuous treatment effect
-  for (i in 2:T) {
-    df[,i] <- df[,i-1] + control_trend + rnorm(N, 0, 1)
-    treated[,i] <- treated[,i-1] + treated_trend + rnorm(n_treated, 0, 1) +
-      ifelse(i >= treatment_period, heterogeneity, 0)
-  }
-  
-  # Combine dfs
-  df <- rbind(df, treated)
-  # Pivot to long format
-  df <- df %>% mutate(Observation = rownames(df)) %>% melt(id.vars = "Observation") %>%
-    rename(Time = variable)  %>% arrange(Time)
-  df$Time <- as.integer(df$Time)
-  # Add treatment indicator period
-  df$treated <- ifelse(df$Observation %in% rownames(treated) & as.numeric(df$Time) >= treatment_period, 1, 0) 
-  df$treated <- as.integer(df$treated)
-  
-  return(df)
-}
+##### Repeated simulation and estimation functions #####
 
 ### Function to simulate and estimate repeatedly
-repeated_simulation <- function(simulation_function, simulation_params, iterations = 1000) {
+repeated_simulation <- function(simulation_function, simulation_params, iterations = 1000, iptw = FALSE) {
+  # Initialize empty list to store dfs created in each iteration
   dfs = list()
   estimates_df = data.frame(matrix(ncol = 3, nrow = iterations))
   colnames(estimates_df) <- c("did", "sc", "sdid")
+  
   for (i in 1:iterations) {
     # Simulate data
     data <- do.call(simulation_function, simulation_params)
+    # If IPTW is True, apply respective matching function
+    if (iptw == TRUE) {
+      data <- perform_iptw_matching(data)
+    }
     # Store data
     dfs[[i]] = data
     setup <- panel.matrices(data)
@@ -340,8 +320,7 @@ contrast_simulation <- function(simulation_function, simulation_params, iteratio
     sc <- sc_estimate(setup_sc$Y, setup_sc$N0, setup_sc$T0)
     sc_end <- Sys.time()
     times_df[i, 3] <- sc_end - sc_start
-    
-    
+
     
     # Start TWFE time
     twfe_start <- Sys.time()
@@ -349,7 +328,6 @@ contrast_simulation <- function(simulation_function, simulation_params, iteratio
     twfe_est <- twfe(data, twfe_formula)
     twfe_end <- Sys.time()
     times_df[i, 4] <- twfe_end - twfe_start
-    
 
   }
   # Store number of observations
@@ -360,78 +338,62 @@ contrast_simulation <- function(simulation_function, simulation_params, iteratio
 }
 
 
-##### Function to perform ITWP matching ##########
-perform_iptw_matching <- function(data) {
 
-  # Compute overall mean
-  overall_mean <- mean(data$value)
-  # Compute pre-treatment means for treated units
-  treated_means <- df %>% filter(grepl("Treated", Observation) & Time < treatment_period) %>%
-    group_by(Observation) %>% summarize(pre_mean = mean(value))
+
+### Function to simulate and estimate repeatedly including IPTW matching
+repeated_simulation_iptw <- function(simulation_function, simulation_params, iterations = 1000) {
+  dfs = list()
+  estimates_df = data.frame(matrix(ncol = 3, nrow = iterations))
+  colnames(estimates_df) <- c("did", "sc", "sdid")
   
-  # Compute pre-treatment means for control units
-  control_means <- df %>% filter(!grepl("Treated", Observation) & Time < treatment_period) %>%
-    group_by(Observation) %>% summarize(pre_mean = mean(value))
-  
-  # Compute inverse probability of receiving treatment as distance from overall mean
-  treated_means$iptw <- 1 / abs(treated_means$pre_mean - overall_mean)
-  control_means$iptw <- 1 / abs(control_means$pre_mean - overall_mean)
-  
-  # Perform logistic activation (probability should be between 0 and 1)
-  treated_means$activation <- 1 / (1 + exp(-treated_means$iptw))
-  control_means$activation <- 1 / (1 + exp(-control_means$iptw))
-  
-  # Merge data
-  mean_data <- rbind(treated_means, control_means)
-  merged_data <- merge(data, mean_data, by = "Observation") %>% 
-    select(-pre_mean, -iptw) %>% arrange(Time)
-  
-  # Apply IPTW weights
-  merged_data$value <- merged_data$value * merged_data$activation
-  
-  # Select only weighted data
-  weighted_data <- merged_data %>% select(-activation)
-  
-  # Return data with IPTW weights applied
-  return(weighted_data)
+  for (i in 1:iterations) {
+    # Simulate data
+    data <- do.call(simulation_function, simulation_params)
+    
+    # Apply IPTW matching
+    data <- perform_iptw_matching(data)
+   
+     # Store data
+    dfs[[i]] = data
+    setup <- panel.matrices(data)
+    estimates = lapply(estimators, function(estimator) { estimator(setup$Y,
+                                                                   setup$N0, setup$T0) } )
+    # Store estimates
+    estimates_df[i, 1] = unlist(estimates)["did"]
+    estimates_df[i, 2] = unlist(estimates)["sc"]
+    estimates_df[i, 3] = unlist(estimates)["sdid"]
+    
+  }
+  return(list("dfs" = dfs, "estimates" = estimates_df))
 }
-
-
-
-###################################
-
-df %>% filter(treated == 1 & Time < treatment_period) %>% group_by(Observation) %>% summarize(outcome = mean(value))
-
-df %>% filter(grepl("Treated", Observation) & Time < treatment_period) %>% group_by(Observation) %>% summarize(outcome = mean(value))
-
-
-treated_means <- df %>% filter(!grepl("Treated", Observation) & Time < treatment_period) %>%
-  group_by(Observation) %>% summarize(pre_mean = mean(value))
 
 
 ########## Plotting functions ##########
 
 ### All individual observations over time
 plot_individual <- function(df) {
-  # Subset treated units
-  treated_units <- df %>% filter(grepl("Treated", Observation))
-  # Subset control units
-  control_units <- df %>% filter(!grepl("Treated", Observation))
+  # Create column indicating treated and control units
+  df <- df %>% mutate(Type = ifelse(grepl("Treated", Observation), "Treated", "Control"))
+  
   # Plot them separately to highlight treated observations
-  ggplot() +
-    geom_line(data = treated_units, aes(x = Time, y = value, color = Observation), linewidth = 2) +
-    geom_line(data = control_units, aes(x = Time, y = value, color = Observation), linewidth = 1) +
+  ggplot(df, aes(x = Time, y = value, group = Observation, color = Type)) +
+    geom_line() +
     geom_vline(xintercept = treatment_period, linetype = "dashed", size = 1.5) +
-    labs(title = "Development of simulated data over time",
+    labs(title = "Development of Simulated Data Over Time",
          x = "Year",
-         y = "Dependent variable") +
+         y = "Dependent Variable") +
+    scale_linewidth_manual(values = c("Treated" = 1.5, "Control" = 1)) +
+    scale_color_manual(values = c("Treated" = "red", "Control" = "black")) +
     theme_minimal() +
     theme(legend.position = "right",
-          plot.title = element_text(hjust = 0.5, size = 20), 
-          axis.title = element_text(size = 16),  
-          axis.text = element_text(size = 14)) #+  
-    #scale_color_manual(values = c("Treated" = "red", "Control" = "black"))
+          plot.title = element_text(hjust = 0.5, size = 20, face = "bold"), 
+          axis.title = element_text(size = 16, face = "bold"),  
+          axis.text = element_text(size = 14),
+          panel.border = element_blank(),
+          legend.title = element_text(size = 16, face = "bold", hjust = 0.5),
+          legend.text = element_text(size = 14))
 }
+
 
 ### Means of treated and control group over time
 plot_grouped <- function(df) {
@@ -475,15 +437,15 @@ plot_grouped_simulations <- function(dfs) {
   ggplot(data = average_data) +
     geom_line(aes(x = Time, y = control_avg, color = "Control mean"), linewidth = 1) +
     geom_line(aes(x = Time, y = treated_avg, color = "Treated mean"), linewidth = 1) +
-    geom_vline(xintercept = treatment_period, linetype = "dashed", size = 1.5) +
-    labs(title = paste0("Development of grouped means using ", iterations, " simulations"),
+    geom_vline(xintercept = treatment_period, linetype = "dashed", linewidth = 1.5) +
+    labs(title = paste0("Grouped means using ", iterations, " simulations with ", n_treated, " treated and ", N, " control units"),
          x = "Year",
          y = "Dependent variable",
          color = "Group",
          size = 14) +
     theme_minimal() +
     theme(legend.position = "right",
-          plot.title = element_text(hjust = 0.5, size = 20, face = "bold"), 
+          plot.title = element_text(hjust = 0.5, size = 18, face = "bold"), 
           axis.title = element_text(size = 16, face = "bold"),  
           axis.text = element_text(size = 14),
           legend.text = element_text(size = 16), 
@@ -495,83 +457,28 @@ plot_grouped_simulations <- function(dfs) {
 }
 
 ### Function to plot distribution of estimates
-plot_estimates <- function(estimates_df) {
+plot_estimates <- function(estimates_df, effect = 'static') {
+  # If effect is dynamic, compute accumulated effect over time
+  if (effect == 'dynamic') {
+    treatment_effect <- dynamic_treatment_effect(treatment_effect, treatment_period, T)
+  }
   ggplot(data = estimates_df) +
-    geom_density(aes(x = did, color = "DiD"), size = 1) +
-    geom_density(aes(x = sc, color = "SC"), size = 1) +
-    geom_density(aes(x = sdid, color = "SDiD"), size = 1) +
-    geom_vline(xintercept = treatment_effect, linetype = "dashed", size = 1.5) +
-    labs(title = paste0("Distribution of estimates using ", iterations, " simulations"),
+    geom_density(aes(x = did, color = "DiD"), linewidth = 1) +
+    geom_density(aes(x = sc, color = "SC"), linewidth = 1) +
+    geom_density(aes(x = sdid, color = "SDiD"), linewidth = 1) +
+    geom_vline(xintercept = treatment_effect, linetype = "dashed", size = 1.5) + 
+    labs(title = paste0("Estimate distribution using ", iterations, " simulations ", n_treated, " treated and ", N, " control units"),
          x = "Estimate",
          y = "Density",
          color = "Method") +
     theme_minimal() +
     theme(legend.position = "right",
-          plot.title = element_text(hjust = 0.5, size = 20, face = "bold"), 
+          plot.title = element_text(hjust = 0.5, size = 18, face = "bold"), 
           axis.title = element_text(size = 16, face = "bold"),  
           axis.text = element_text(size = 14),
           legend.title = element_text(face = "bold"),
           legend.text = element_text(size = 12)) +
-    scale_color_manual(values = c("DiD" = "#E41A1C", "SC" = "#377EB8", "SDiD" = "#4DAF4A"),
+    scale_color_manual(values = c("DiD" = "black", "SC" = "blue", "SDiD" = "red"),
                        labels = c("DiD" = "DiD", "SC" = "SC", "SDiD" = "SDiD")) +
     guides(color = guide_legend(title = "Estimator", title.position = "top", title.hjust = 0.5))
 }
-
-
-########## Other functions ##########
-
-### Function to compute dynamic treatment effect
-dynamic_treatment_effect <- function(treatment_effect, treatment_period, T) {
-  # Define the number of periods after treatment
-  num_periods <- T - treatment_period + 1
-  # Compute the dynamic treatment effect using vectorized operations
-  total_effect <- sum(treatment_effect * (1:num_periods))
-  return(total_effect/num_periods)
-}
-
-########## Test-wise estimation ##########
-
-# Set parameter values
-#N <- 30
-#T <- 30
-#n_treated <- 5
-#treatment_period <- 30
-#trend <- 0.05
-#control_trend <- 0.1
-#treated_trend <- 0.1
-#mean = 0
-#sd = 1
-#treatment_effect = 2
-
-# Simulate and visualize data
-#df = treatment_simulation(N, T, n_treated, treatment_period, control_trend, treated_trend, treatment_effect)
-#plot_grouped(df)
-
-# Define estimators to be used
-#estimators = list(did=did_estimate,
-                  #sc=sc_estimate,
-                  #sdid=synthdid_estimate)
-
-# Convert to required format
-#setup = panel.matrices(df)
-
-# Check structure
-#head(df)
-
-# Compute estimates
-#estimates = lapply(estimators, function(estimator) { estimator(setup$Y,
-                                                               #setup$N0, setup$T0) } )
-#estimates
-
-########## Application ##########
-
-### Function to run each simulation and estimation multiple times
-
-#results <- repeated_simulation(treatment_simulation, list(N, T, n_treated, treatment_period, control_trend, treated_trend, treatment_effect), 10)
-#dfs <- results$dfs
-#estimates_df <- results$estimates
-#plot_estimates(estimates_df)
-#plot_grouped_simulations(dfs)
-
-# Compute column-wise mean of estimates
-#colMeans(estimates_df)

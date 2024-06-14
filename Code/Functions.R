@@ -1,8 +1,5 @@
 library(synthdid)
 library(rngtools)
-library(future)
-library(doFuture)
-library(future.batchtools)
 library(xtable)
 library(dplyr)
 library(tidyr)
@@ -71,22 +68,22 @@ treatment_simulation <- function(N, T, n_treated, treatment_period, pre_control_
   control[,1] <- rnorm(N, 0, 1)
   treated[,1] <- rnorm(n_treated, treated_mean, 1)
   # Fill rest of columns as previous value + upwards time-trend added and random draw and if treated, add treatment effect
-  for (i in 2:T) {
+  for (t in 2:T) {
     # Control units: Always add mean zero innovation
-    control[,i] <- control[,i-1] + rnorm(N, 0, 1) +
+    control[,t] <- control[,t-1] + rnorm(N, 0, 1) +
       # If treatment is not yet applied, add pre-treatment control trend
-      ifelse(i < treatment_period, pre_control_trend, 0) +
+      ifelse(t < treatment_period, pre_control_trend, 0) +
       # If treatment has been applied, add post-treatment control trend
-      ifelse(i >= treatment_period, post_control_trend, 0)
+      ifelse(t >= treatment_period, post_control_trend, 0)
     # Treated units: Always add mean zero innovation
-    treated[,i] <- treated[,i-1] + rnorm(n_treated, 0, 1) +
+    treated[,t] <- treated[,t-1] + rnorm(n_treated, 0, 1) +
       # If treatment is not yet applied, add pre-treatment treated trend
-      ifelse(i < treatment_period, pre_treated_trend, 0) +
+      ifelse(t < treatment_period, pre_treated_trend, 0) +
       # if we are in treatment period, add treatment effect depending on effect type
-      ifelse(effect == "static" && i == treatment_period, treatment_effect, 0) +
-      ifelse(effect == "dynamic" && i >= treatment_period, treatment_effect, 0) +
+      ifelse(effect == "static" && t == treatment_period, treatment_effect, 0) +
+      ifelse(effect == "dynamic" && t >= treatment_period, treatment_effect, 0) +
       # If we are in or after treatment period, add post-treatment treated trend
-      ifelse(i >= treatment_period, post_treated_trend, 0) 
+      ifelse(t >= treatment_period, post_treated_trend, 0) 
       
   }
   # Combine dfs
@@ -111,7 +108,7 @@ treatment_simulation <- function(N, T, n_treated, treatment_period, pre_control_
 # deviation: Standard deviation of the treatment effect distribution
 # can be understood as degree of heterogeneity in treatment effects
 
-unit_heterogeneous_treatment_simulation <- function(N, T, n_treated, treatment_period, pre_control_trend, pre_treated_trend,
+heterogeneous_treatment_simulation <- function(N, T, n_treated, treatment_period, pre_control_trend, pre_treated_trend,
                                  post_control_trend, post_treated_trend, treatment_effect, effect = "static", deviation = 1, treated_mean = 0) {
   # Set up data frame with N rows and T columns
   control <- data.frame(matrix(ncol = T, nrow = N))
@@ -128,21 +125,21 @@ unit_heterogeneous_treatment_simulation <- function(N, T, n_treated, treatment_p
   # Draw vector of heterogeneous treatment effects
   heterogeneity <- rnorm(n_treated, treatment_effect, deviation)
   # Fill rest of columns as previous value + upwards time-trend added and random draw and if treated, add treatment effect
-  for (i in 2:T) {
+  for (t in 2:T) {
     # Control units: Always add mean zero innovation
-    control[,i] <- control[,i-1] + rnorm(N, 0, 1) +
+    control[,t] <- control[,t-1] + rnorm(N, 0, 1) +
       # If treatment is not yet applied, add pre-treatment control trend
-      ifelse(i < treatment_period, pre_control_trend, 0) +
+      ifelse(t < treatment_period, pre_control_trend, 0) +
       # If treatment has been applied, add post-treatment control trend
-      ifelse(i >= treatment_period, post_control_trend, 0)
+      ifelse(t >= treatment_period, post_control_trend, 0)
     # Treated units: Always add mean zero innovation
-    treated[,i] <- treated[,i-1] + rnorm(n_treated, 0, 1) +
-      ifelse(i < treatment_period, pre_treated_trend, 0) +
+    treated[,t] <- treated[,t-1] + rnorm(n_treated, 0, 1) +
+      ifelse(t < treatment_period, pre_treated_trend, 0) +
       # if we are in treatment period, add treatment effect depending on effect type
       # Careful to disentangle if statement from vectorized operation!!!!!
-      if (effect == "static" & i == treatment_period) heterogeneity else 0 +
-      if (effect == "dynamic" & i >= treatment_period) heterogeneity else 0 +
-      ifelse(i >= treatment_period, post_treated_trend, 0)
+      if (effect == "static" & t == treatment_period) heterogeneity else 0 +
+      if (effect == "dynamic" & t >= treatment_period) heterogeneity else 0 +
+      ifelse(t >= treatment_period, post_treated_trend, 0)
     
     
   }
@@ -164,7 +161,7 @@ unit_heterogeneous_treatment_simulation <- function(N, T, n_treated, treatment_p
 ### pre-/post trends and static/dynamic treatment effects thar are heterogeneous
 ### on unit AND time level
 
-heterogeneous_treatment_simulation <- function(N, T, n_treated, treatment_period, pre_control_trend, pre_treated_trend,
+overall_heterogeneous_treatment_simulation <- function(N, T, n_treated, treatment_period, pre_control_trend, pre_treated_trend,
                                  post_control_trend, post_treated_trend, treatment_effect, effect = "static", deviation, treated_mean = 0) {
   # Set up data frame with N rows and T columns
   control <- data.frame(matrix(ncol = T, nrow = N))
@@ -291,7 +288,7 @@ repeated_simulation <- function(simulation_function, simulation_params, iteratio
 
 
 ### Function to contrast time consumption of SDiD, SC and TWFE 
-contrast_simulation <- function(simulation_function, simulation_params, iterations = 100) {
+contrast_simulation <- function(simulation_function, simulation_params, iterations = 1000) {
 
   # Setup df for results
   times_df = data.frame(matrix(ncol = 4, nrow = iterations))
@@ -378,7 +375,7 @@ plot_individual <- function(df) {
   # Plot them separately to highlight treated observations
   ggplot(df, aes(x = Time, y = value, group = Observation, color = Type)) +
     geom_line() +
-    geom_vline(xintercept = treatment_period, linetype = "dashed", size = 1.5) +
+    geom_vline(xintercept = treatment_period, linetype = "dashed", linewidth = 1.5) +
     labs(title = "Development of Simulated Data Over Time",
          x = "Year",
          y = "Dependent Variable") +
@@ -386,12 +383,13 @@ plot_individual <- function(df) {
     scale_color_manual(values = c("Treated" = "red", "Control" = "black")) +
     theme_minimal() +
     theme(legend.position = "right",
-          plot.title = element_text(hjust = 0.5, size = 20, face = "bold"), 
-          axis.title = element_text(size = 16, face = "bold"),  
-          axis.text = element_text(size = 14),
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"), 
+          axis.title = element_text(size = 12, face = "bold"),  
+          axis.text = element_text(size = 10),
           panel.border = element_blank(),
-          legend.title = element_text(size = 16, face = "bold", hjust = 0.5),
-          legend.text = element_text(size = 14))
+          legend.title = element_text(size = 12, face = "bold", hjust = 0.5),
+          legend.text = element_text(size = 10)) +
+    scale_x_continuous(breaks = seq(min(df$Time), max(df$Time), by = 1))
 }
 
 
@@ -408,16 +406,17 @@ plot_grouped <- function(df) {
   ggplot(data = average_data) +
     geom_line(aes(x = Time, y = control_avg, color = "Control mean"), linewidth = 1) +
     geom_line(aes(x = Time, y = treated_avg, color = "Treated mean"), linewidth = 1) +
-    geom_vline(xintercept = treatment_period, linetype = "dashed", size = 1.5) +
+    geom_vline(xintercept = treatment_period, linetype = "dashed", linewidth = 1.5) +
     labs(title = "Development of grouped means over time",
          x = "Year",
          y = "Dependent variable") +
     theme_minimal() +
     theme(legend.position = "right",
-          plot.title = element_text(hjust = 0.5, size = 20, face = "bold"), 
-          axis.title = element_text(size = 16, face = "bold"),  
-          axis.text = element_text(size = 14)) +
-    scale_color_manual(values = c("Treated mean" = "red", "Control mean" = "black")) #+
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"), 
+          axis.title = element_text(size = 12, face = "bold"),  
+          axis.text = element_text(size = 10)) +
+    scale_color_manual(values = c("Treated mean" = "red", "Control mean" = "black")) +
+    scale_x_continuous(breaks = seq(min(df$Time), max(df$Time), by = 1)) #+
   # Set ylim
   #ylim(95, 110)
 }
@@ -445,13 +444,14 @@ plot_grouped_simulations <- function(dfs) {
          size = 14) +
     theme_minimal() +
     theme(legend.position = "right",
-          plot.title = element_text(hjust = 0.5, size = 18, face = "bold"), 
-          axis.title = element_text(size = 16, face = "bold"),  
-          axis.text = element_text(size = 14),
-          legend.text = element_text(size = 16), 
-          legend.title = element_text(size = 16, face = "bold"),
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"), 
+          axis.title = element_text(size = 12, face = "bold"),  
+          axis.text = element_text(size = 10),
+          legend.text = element_text(size = 10), 
+          legend.title = element_text(size = 12, face = "bold"),
           legend.title.align = 0.5) +
-    scale_color_manual(values = c("Treated mean" = "red", "Control mean" = "black")) #+
+    scale_color_manual(values = c("Treated mean" = "red", "Control mean" = "black")) +
+    scale_x_continuous(breaks = seq(min(df$Time), max(df$Time), by = 1)) #+
   # Set ylim
   #ylim(95, 110)
 }
@@ -462,23 +462,61 @@ plot_estimates <- function(estimates_df, effect = 'static') {
   if (effect == 'dynamic') {
     treatment_effect <- dynamic_treatment_effect(treatment_effect, treatment_period, T)
   }
+  
   ggplot(data = estimates_df) +
     geom_density(aes(x = did, color = "DiD"), linewidth = 1) +
     geom_density(aes(x = sc, color = "SC"), linewidth = 1) +
     geom_density(aes(x = sdid, color = "SDiD"), linewidth = 1) +
-    geom_vline(xintercept = treatment_effect, linetype = "dashed", size = 1.5) + 
+    geom_vline(xintercept = treatment_effect, linetype = "dashed", linewidth = 1.5) + 
     labs(title = paste0("Estimate distribution using ", iterations, " simulations ", n_treated, " treated and ", N, " control units"),
          x = "Estimate",
          y = "Density",
          color = "Method") +
     theme_minimal() +
     theme(legend.position = "right",
-          plot.title = element_text(hjust = 0.5, size = 18, face = "bold"), 
-          axis.title = element_text(size = 16, face = "bold"),  
-          axis.text = element_text(size = 14),
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"), 
+          axis.title = element_text(size = 12, face = "bold"),  
+          axis.text = element_text(size = 10),
           legend.title = element_text(face = "bold"),
           legend.text = element_text(size = 12)) +
-    scale_color_manual(values = c("DiD" = "black", "SC" = "blue", "SDiD" = "red"),
+    scale_color_manual(values = c("DiD" = "#1a80bb", "SC" = "#b8b8b8", "SDiD" = "#ea801c"),
                        labels = c("DiD" = "DiD", "SC" = "SC", "SDiD" = "SDiD")) +
     guides(color = guide_legend(title = "Estimator", title.position = "top", title.hjust = 0.5))
 }
+
+### Function to plot bias of estimates
+plot_bias <- function(df, effect = 'static', y_limit = ylim(0, 0.5)) {
+  
+  # If effect is dynamic, compute accumulated effect over time
+  if (effect == 'dynamic') {
+    treatment_effect <- dynamic_treatment_effect(treatment_effect, treatment_period, T)
+  }
+    # Compute bias per method
+  df <- df %>% mutate(did_bias = abs(did - treatment_effect),
+                      sc_bias = abs(sc - treatment_effect),
+                      sdid_bias = abs(sdid - treatment_effect))
+
+  # Plot biases against smaple size
+  bias_plot <- ggplot(data = df, aes(x = N)) +
+    geom_line(aes(y = did_bias, color = "DiD"), linewidth = 1.5) +
+    geom_line(aes(y = sc_bias, color = "SC"), linewidth = 1.5) +
+    geom_line(aes(y = sdid_bias, color = "SDiD"), linewidth = 1.5) +
+    labs(title = paste0("Distribution of bias per method depending on population size"),
+         x = "Control units",
+         y = "Bias",
+         color = "Method") +
+    theme_minimal() +
+    theme(legend.position = "right",
+          plot.title = element_text(hjust = 0.5, size = 14, face = "bold"), 
+          axis.title = element_text(size = 12, face = "bold"),  
+          axis.text = element_text(size = 10),
+          legend.title = element_text(face = "bold"),
+          legend.text = element_text(size = 12)) +
+    scale_color_manual(values = c("DiD" = "#1a80bb", "SC" = "#b8b8b8", "SDiD" = "#ea801c"),
+                       labels = c("DiD" = "DiD", "SC" = "SC", "SDiD" = "SDiD")) +
+    guides(color = guide_legend(title = "Estimator", title.position = "top", title.hjust = 0.5)) +
+    y_limit
+  
+  return(list("bias_df" = df, "plot" = bias_plot))
+}
+

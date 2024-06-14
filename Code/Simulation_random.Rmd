@@ -1,0 +1,359 @@
+---
+title: "A comparison of Difference in Differences, Synthetic Controls and
+Synthetic Difference in Differences via simulated data"
+author: "Benjamin Herzberger"
+date: "2024-06-13"
+output: html_document
+---
+
+```{r Setup, warning = FALSE, message = FALSE}
+rm(list=ls())
+source("Functions.R")
+
+# Set up estimators to be used in the estimation via {synthdid} package
+estimators = list(did = did_estimate, sc = sc_estimate, sdid = synthdid_estimate)
+
+# Set seed for replicability
+set.seed(100)
+
+# Draw random index to select 1 dataframe per simulation for visualization
+index <- round(runif(1, 1, 1000)) 
+
+# Set up relative path for working directory
+path <- "C:/Users/benny/OneDrive/Studium/Tübingen/DS in B&E/4. Semester SS2024/B520 Research Seminar on Marketing/Code"
+```
+
+
+## 1.0 Random treatment assignment 
+
+To recreate random treatment assignment, both populations will be modeled to be very similar:
+Initial values are drawn from the same Normal distribution and pre-/ as well as post-treatment
+trends are the same for both groups. In the context of homogeneous treatment effects,
+the number of treated units will strictly be set to 1. In the context of heterogeneous
+treatment effects, the number of treated units will be set to amount to 5%/10% of the
+total sample size. 
+
+
+### 1.1 Effect of sample size on estimates
+
+To test the influence that sample size has on the estimates of all three methods,
+in the static treatment effect setting, we will vary the control population from 
+5 to 1000 units, while always only treating 1 unit. All other variables are fixed
+to isolate the effect of the sample size and enhance comparability across simulation
+designs. Each simulation will be carried out 1000 times.
+
+```{r Effect of sample sizes}
+# Set seed anew, so chunks can also be run independently
+set.seed(100)
+
+# Set parameters for simulation
+iterations <- 1000
+T <- 10
+n_treated <- 1
+pre_control_trend <- 0.1
+pre_treated_trend <- pre_control_trend
+post_control_trend <- pre_control_trend
+post_treated_trend <- pre_control_trend
+treatment_effect <- 1
+control_sizes <- c(5, 10, 50, 100, 500, 1000)
+treatment_period <- T - 2
+
+# Set treatment effect to be static (only applied once)
+effect = "static"
+
+# Initialize df to store estimates per iteration
+all_estimates <- data.frame(matrix(ncol = 5, nrow = 0))
+colnames(all_estimates) <- c("Effect", "N", "did", "sc", "sdid")
+
+
+for(i in 1:length(control_sizes)){
+  
+  # Grab N and n_treated 
+  N <- control_sizes[i]
+  
+  # Set up list of simulation parameters
+  simulation_params <- list(N = control_sizes[i], T = T, n_treated = n_treated, treatment_period = treatment_period,
+                           pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                           post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                           treatment_effect = treatment_effect, effect = effect)
+  
+  # Simulation & estimation
+  results <- repeated_simulation(simulation_function = treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations)
+  # Grab estimates
+  estimates <- results$estimates
+  
+  # Grab one example df at random index
+  df <- results$dfs[[index]]
+ 
+  # Save example df
+  write.csv(df, paste0(path, "/Output/Data/Example DFs/example_df_N_", N, "_random.csv"))
+  
+  # Add additional simulation parameters to estimates
+  estimates <- cbind(treatment_effect, N, estimates)
+  colnames(estimates) <- c("Effect", "N", "did", "sc", "sdid")
+  
+  # Append estimates to all_estimates dataframe
+  all_estimates <- rbind(all_estimates, estimates)
+  
+  # Save plot of grouped simulations within each iteration
+  plot_grouped_simulations(results$dfs) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/data_plot_N_", N, "_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+  
+  # Print progress info
+  print(paste0("Finished simulation for N = ", N, " and n_treated = ", n_treated, " at ", Sys.time()))
+}
+
+# Save all estimates
+write.csv(all_estimates, paste0(path, "/Output/Data/all_estimates_per_N_random.csv"))
+```
+
+
+#### 1.2 Effect of pre-treatment periods on estimates
+
+To test the influence that the number of pre-treatment periods has on the estimates of
+all three methods, all variables except the treatment period, and consequently the 
+number of pre-treatment periods, will be kept constant. The number of pre-treatment periods
+will be varied from 3 (earliest possible treatment) to 10 (last period). 
+In order to still highlight one of SDiD's and SC's main advantages, the overall 
+sample size is rather small. Each simulation will again be carried out 1000 times. 
+
+```{r Effect of Treatment periods}
+set.seed(100)
+
+# Set addutional simulation parameters
+N <- 9
+
+# Setting a lower value than 3 is not possible 
+treatment_periods = c(3, 4, 5, 6, 7, 8, 9, 10)
+
+# Initialize df to store estimates per iteration
+all_estimates <- data.frame(matrix(ncol = 5, nrow = 0))
+colnames(all_estimates) <- c("Effect", "N", "did", "sc", "sdid")
+
+for(i in 1:length(treatment_periods)){
+  
+  treatment_period <- treatment_periods[i]
+  simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                           pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                           post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                           treatment_effect = treatment_effect, effect = effect)
+  
+  # Simulation & estimation
+  results <- repeated_simulation(simulation_function = treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations)
+  # Grab estimates
+  estimates <- results$estimates
+  
+  # Grab one example df at random index
+  df <- results$dfs[[index]]
+  
+  # Save example df
+  write.csv(df, paste0(path, "/Output/Data/Example DFs/example_df_treatment_period_", treatment_period, "_random.csv"))
+  
+  # Add additional simulation parameters to estimates
+  estimates <- cbind(treatment_effect, treatment_period, estimates)
+  colnames(estimates) <- c("Effect", "Treatment Period", "did", "sc", "sdid")
+  
+  # Append estimates to all_estimates dataframe
+  all_estimates <- rbind(all_estimates, estimates)
+
+  # Save plot of grouped simulations within each iteration
+  plot_grouped_simulations(results$dfs) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/data_plot_treatment_period_",
+                             treatment_period, "_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+  # Print progress info
+  print(paste0("Finished simulation for treatment period = ", treatment_period, " at ", Sys.time()))
+}
+
+# Save all estimates
+write.csv(all_estimates, paste0(path, "/Output/Data/all_estimates_per_period_random.csv"))
+```
+
+
+#### 1.3 Effect of heterogeneity (treatment effect) on estimates
+
+To test the effect that heterogeneous treatment effects have on the three different estimation
+methods, the treatment will now be drawn from a Normal distribution with a mean of 
+the treatment effect and an increasing standard deviation, which serves as a means to model the
+heterogeneity in the treatment effect. The number of treated units will be set to 5%/10% of the
+overall population size. However, in order for heterogeneity to "take effect" a sufficient
+number of treated units has to be simulated. Slightly larger sample sizes will therefore
+be considered in this context. Each simulation will be carried out 1000 times. 
+
+```{r Effect of heterogeneity}
+set.seed(100)
+
+# Set up additional parameters
+heterogeneity <- c(1, 2, 3, 4, 5)
+treatment_period <- T - 2
+
+# Set overall sample size to 100, to allow for 5% and 10% share of treated units
+N <- 100
+treated_sizes <- c(5, 10)
+combinations <- length(heterogeneity) * length(treated_sizes)
+
+# Initialize df to store estimates per iteration
+all_estimates <- data.frame(matrix(ncol = 6, nrow = 0))
+colnames(all_estimates) <- c("Effect", "Heterogeneity", "treated", "did", "sc", "sdid")
+
+# Loop over combinations of heterogeneity and treated sizes
+for(i in 1:length(treated_sizes)){
+  
+  n_treated <- treated_sizes[i]
+  
+    for (j in 1:length(heterogeneity)){
+      
+      deviation <- heterogeneity[j]
+    
+      simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                           pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                           post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                           treatment_effect = treatment_effect, deviation = deviation, effect = effect)
+  
+      # Simulation & estimation
+      results <- repeated_simulation(simulation_function = heterogeneous_treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations)
+      # Grab estimates
+      estimates <- results$estimates
+  
+      # Grab one example df at random index
+      df <- results$dfs[[index]]
+  
+      # Save example df
+      write.csv(df, paste0(path, "/Output/Data/Example DFs/example_df_deviation", deviation, "_random.csv"))
+      
+      # Add additional simulation parameters to estimates
+      estimates <- cbind(treatment_effect, deviation, n_treated, estimates)
+      colnames(estimates) <- c("Effect", "Heterogeneity", "Treated", "did", "sc", "sdid")
+      
+      # Append estimates to all_estimates dataframe
+      all_estimates <- rbind(all_estimates, estimates)
+
+      # Save plot of grouped simulations within each iteration
+      plot_grouped_simulations(results$dfs) %>%
+      ggsave(filename = paste0(path, "/Output/Plots/data_plot_dev_",
+                             deviation, "_n_treated_", n_treated, "_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+
+      # Print progress info
+      print(paste0("Finished simulation for deviation = ", deviation, " and n_treated = ", n_treated, " at ", Sys.time()))
+  }
+}
+
+# Save all estimates
+write.csv(all_estimates, paste0(path, "/Output/Data/all_estimates_per_deviation_random.csv"))
+```
+
+
+### 1.4 Violation of the parallel trends assumption
+
+The assumption of parallel trends is crucial for identifying the treatment effect
+in the context of DiD. In order to test how well the three different methods can
+cope with violations of this assumption, the post-treatment trends will be set to 
+sightly differ between the two groups. Pre-treatment trends are still parallel.
+Setting the overall sample size to be sufficiently large in order to return reliable estimates,
+different degrees of violation will be considered. Each simulation will be carried out 1000 times. 
+
+```{r Violation of parallel trends}
+set.seed(100)
+
+# Set additional parameters
+N <- 100
+n_treated <- 5
+post_treated_trends <- c(0.2, 0.3, 0.5, 1)
+
+# Initialize df to store estimates per iteration
+all_estimates <- data.frame(matrix(ncol = 5, nrow = 0))
+colnames(all_estimates) <- c("Effect", "Post Treated Trend", "did", "sc", "sdid")
+
+for(i in 1:length(post_treated_trends)){
+  
+  post_treated_trend <- post_treated_trends[i]
+  
+  simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                           pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                           post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                           treatment_effect = treatment_effect, effect = effect)
+  
+  # Simulation & estimation
+  results <- repeated_simulation(simulation_function = treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations)
+  # Grab estimates
+  estimates <- results$estimates
+  
+  # Grab one example df at random index
+  df <- results$dfs[[index]]
+  
+  # Save example df
+  write.csv(df, paste0(path, "/Output/Data/Example DFs/example_df_post_treated_trend_", post_treated_trend, "_random.csv"))
+  
+  # Add additional simulation parameters to estimates
+  estimates <- cbind(treatment_effect, post_treated_trend, estimates)
+  colnames(estimates) <- c("Effect", "Post Treated Trend", "did", "sc", "sdid")
+  
+  # Append estimates to all_estimates dataframe
+  all_estimates <- rbind(all_estimates, estimates)
+  
+  # Save plot of grouped simulations within each iteration
+  plot_grouped_simulations(results$dfs) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/data_plot_post_treated_trend_",
+                             post_treated_trend, "_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+  
+  # Print progress info
+  print(paste0("Finished simulation for post treated trend = ", post_treated_trend, " at ", Sys.time()))
+}
+
+# Save all estimates
+write.csv(all_estimates, paste0(path, "/Output/Data/all_estimates_per_post_treated_trend_random.csv"))
+```
+
+
+### 1.5 Assessing the computation time per method 
+
+Since SDiD and SC are computationally more demanding than DiD, comparing their differences
+in terms of computation time is an important aspect, when assessing their overall
+performance. In order to contrast the computation times, the simpler setting of 
+homogeneous treatment will be regarded. 7 different sample sizes will be considered 
+and the number of treated units always amounts to 10% of the overall population size.
+In each iteration, the three different estimation methods are carried out separately and
+the computation time will be tracked. Each simulation (sample size) will be carried out 1000 times. 
+
+```{r Contrasting computation times}
+set.seed(100)
+
+# Set parameters for simulation
+population_sizes <- c(10, 50, 100, 250, 500, 1000, 5000)
+post_treated_trend <- 0.1
+
+# Construct df to store mean computation times
+all_computation_times <- data.frame(matrix(ncol = 4, nrow = 0))
+colnames(all_computation_times) <- c("N", "SDiD", "SD", "TWFE")
+
+# Set up list of simulation parameters
+
+for (i in 1:length(population_sizes)){
+ 
+  # Set N and n_treated 
+  N <- 0.9 * population_sizes[i]
+  n_treated <- 0.1 * population_sizes[i]
+  
+  # Collect parameters
+  simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                           pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                           post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                           treatment_effect = treatment_effect)
+  # Conduct simulation
+  times <- contrast_simulation(simulation_function = treatment_simulation,
+                               simulation_params = simulation_params, iterations = iterations)
+  
+  # Append to all_computation_times
+  all_computation_times <- rbind(all_computation_times, times)
+
+  # Print progress info
+  print(paste0("Finished simulation for N = ", N, " and n_treated = ", n_treated, " at ", Sys.time()))
+}
+
+# Save results for later use
+write.csv(all_computation_times, paste0(path, "/Output/Data/computation_times_per_N_random.csv"))
+```
+

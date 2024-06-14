@@ -1,3 +1,8 @@
+library(future)
+library(doFuture)
+library(future.batchtools)
+
+
 ##### Code to plot development of individual observations over time
 individual_plot <- ggplot(data = df, aes(x = Time, y = value, color = Observation)) +
   geom_line() +
@@ -297,3 +302,194 @@ plot_estimates(estimates_5000_1000) %>%
   ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_5000_1000.png"), width = 10, height = 5, units = "in", dpi = 300)
 plot_grouped_simulations(results_5000_1000$dfs) %>%
   ggsave(filename = paste0(path, "/Output/Plots/data_plot_5000_1000.png"), width = 10, height = 5, units = "in", dpi = 300)
+
+
+#######################################
+# Dynamic treatment effect random treatment
+### 1.2 Dynamic treatment 
+
+#### 1.2.1 Effect of sample size on estimates
+
+```{r}
+# Set seed anew, because chunks will be run separately
+set.seed(100)
+
+# Set parameters for simulation
+T <- 10
+n_treated <- 1
+treatment_effect <- 1
+control_sizes <- c(5, 10, 50, 100, 500, 1000)
+
+# Set treatment effect to be dynamic (applied repeatedly in each period >= treatment_period)
+effect = "dynamic"
+
+# Treatment happens in T = 8
+treatment_period <- T - 2
+
+# Initialize df to store info about estimates per iteration
+means <- data.frame(matrix(ncol = 5, nrow = length(control_sizes)))
+sds <- data.frame(matrix(ncol = 5, nrow = length(control_sizes)))
+colnames(means) <- c("Effect", "N", "did", "sc", "sdid")
+colnames(sds) <- c("Effect", "N","did", "sc", "sdid")
+
+for(i in 1:length(control_sizes)){
+  
+  # Grab N and n_treated 
+  N <- control_sizes[i]
+  
+  # Set up list of simulation parameters
+  simulation_params <- list(N = control_sizes[i], T = T, n_treated = n_treated, treatment_period = treatment_period,
+                            pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                            post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                            treatment_effect = treatment_effect, effect = effect)
+  
+  # Simulation & estimation
+  results <- repeated_simulation(simulation_function = treatment_simulation,
+                                 simulation_params = simulation_params, iterations = iterations)
+  estimates <- results$estimates
+  df <- results$dfs[[index]]
+  
+  # Compute mean and sd of estimates and add average treatment effect
+  effect <- dynamic_effect(treatment_effect, treatment_period, T)
+  means[i, ] <- c(effect, N, colMeans(estimates))
+  sds[i, ] <- c(effect, N, apply(estimates, 2, sd))
+  
+  write.csv(df, paste0(path, "/Output/Data/df_N_", N, "_ho_dyn_random.csv"))
+  write.csv(estimates, paste0(path, "/Output/Data/estimates_N_", N, "_ho_dyn_random.csv"))
+  
+  plot_estimates(estimates) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_N_", N, "_ho_dyn_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+  plot_grouped_simulations(results$dfs) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/data_plot_N_", N, "_ho_dyn_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+  # Print progress info
+  print(paste0("Finished simulation for N = ", N, " and n_treated = ", n_treated, " at ", Sys.time()))
+}
+
+write.csv(means, paste0(path, "/Output/Data/means_per_N_ho_dyn_random.csv"))
+write.csv(sds, paste0(path, "/Output/Data/sds_per_N_ho_dyn_random.csv"))
+```
+
+
+#### 1.2.2 Effect of pre-treatment periods on estimates
+
+```{r}
+set.seed(100)
+N <- 8
+T <- 10
+n_treated <- 2
+treatment_effect <- 1
+iterations <- 1000
+
+# Setting a lower value than 3 is not possible 
+treatment_periods = c(3, 4, 5, 6, 7, 8, 9, 10)
+
+# Initialize df to store info about estimates per iteration
+means <- data.frame(matrix(ncol = 5, nrow = length(treatment_periods)))
+sds <- data.frame(matrix(ncol = 5, nrow = length(treatment_periods)))
+colnames(means) <- c("Effect", "treatment_period", "did", "sc", "sdid")
+colnames(sds) <- c("EFfect", "treatment_period", "did", "sc", "sdid")
+
+for(treatment_period in treatment_periods){
+  simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                            pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                            post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                            treatment_effect = treatment_effect, effect = effect)
+  
+  # Extract N and n_treated for file naming
+  N <- simulation_params$N
+  n_treated <- simulation_params$n_treated
+  
+  # Simulation & estimation
+  results <- repeated_simulation(simulation_function = treatment_simulation,
+                                 simulation_params = simulation_params, iterations = iterations)
+  # Assign results
+  estimates <- results$estimates
+  df <- results$dfs[[index]]
+  
+  # Compute mean and sd of estimates
+  effect <- dynamic_effect(treatment_effect, treatment_period, T)
+  means[treatment_period, ] <- c(effect, treatment_period, colMeans(estimates))
+  sds[treatment_period, ] <- c(effect, treatment_period, apply(estimates, 2, sd))
+  
+  write.csv(df, paste0(path, "/Output/Data/df_treatment_period_", treatment_period, "_ho_dyn_random.csv"), )
+  write.csv(estimates, paste0(path, "/Output/Data/estimates_treatment_period_", treatment_period,"_ho_dyn_random.csv"))
+  
+  plot_estimates(estimates) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_treatment_period_",
+                             treatment_period, "_ho_dyn_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+  plot_grouped_simulations(results$dfs) %>%
+    ggsave(filename = paste0(path, "/Output/Plots/data_plot_treatment_period_",
+                             treatment_period, "_ho_dyn_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+}
+
+# Collect means and sd data
+write.csv(means, paste0(path, "/Output/Data/means_treatment_period_", treatment_period, "_ho_dyn_random.csv"))
+write.csv(sds, paste0(path, "/Output/Data/sds_treatment_period_", treatment_period, "_ho_dyn_random.csv"))
+```
+
+
+#### 1.2.3 Effect of heterogeneity (in treatment effect) on estimates
+
+
+```{r}
+set.seed(100)
+
+# Set up new parameter configurations
+heterogeneity <- c(1, 2, 3, 4, 5)
+# Set overall sample size to 100, to allow for 2% and 5% share of treated units
+N <- 20
+treated_sizes <- c(1, 2)
+
+# Set overall sample size to 100, to allow for 5% and 10% share of treated units
+N <- 20
+treated_sizes <- c(1, 2)
+
+# Initialize df to store info about estimates per iteration
+means <- data.frame(matrix(ncol = 6, nrow = combinations))
+sds <- data.frame(matrix(ncol = 6, nrow = combinations))
+colnames(means) <- c("Effect", "Heterogeneity","treated", "did", "sc", "sdid")
+colnames(sds) <- c("Effect", "Heterogeneity", "treated", "did", "sc", "sdid")
+
+for(treated_size in treated_sizes){
+  
+  n_treated <- treated_size
+  
+  for (deviation in heterogeneity){
+    
+    deviation <- deviation
+    
+    simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                              pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                              post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                              treatment_effect = treatment_effect, deviation = deviation, effect = effect)
+    
+    # Simulation & estimation
+    results <- repeated_simulation(simulation_function = heterogeneous_treatment_simulation,
+                                   simulation_params = simulation_params, iterations = iterations)
+    # Assign results
+    estimates <- results$estimates
+    df <- results$dfs[[index]]
+    
+    # Compute mean and sd of estimates
+    effect <- dynamic_effect(treatment_effect, treatment_period, T)
+    means[treatment_period, ] <- c(effect, heterogeneity, n_treated, colMeans(estimates))
+    sds[treatment_period, ] <- c(effect, heterogeneity, n_treated, apply(estimates, 2, sd))
+    
+    write.csv(df, paste0(path, "/Output/Data/df_dev_", heterogeneity, "_n_treated_", n_treated ,"dyn_random.csv"), )
+    write.csv(estimates, paste0(path, "/Output/Data/estimates_dev_", heterogeneity, "_n_treated_", n_treated, "dyn_random.csv"))
+    
+    plot_estimates(estimates) %>%
+      ggsave(filename = paste0(path, "/Output/Plots/estimates_plot_dev_",
+                               heterogeneity, "_n_treated_", n_treated, "dyn_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+    plot_grouped_simulations(results$dfs) %>%
+      ggsave(filename = paste0(path, "/Output/Plots/data_plot_dev_",
+                               heterogeneity, "_n_treated_", n_treated, "dyn_random.png"), width = 10, height = 5, units = "in", dpi = 300)
+    # Print progress info
+    print(paste0("Finished simulation for deviation = ", deviation, " and n_treated = ", n_treated, " at ", Sys.time()))
+  }
+}
+
+# Collect means and sd data
+write.csv(means, paste0(path, "/Output/Data/means_per_N_he_dyn_random.csv"))
+write.csv(sds, paste0(path, "/Output/Data/sds_per_N_he_dyn_random.csv"))
+```

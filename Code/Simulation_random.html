@@ -360,30 +360,9 @@ data</h1>
 
 
 <pre class="r"><code>rm(list=ls())
-source(&quot;Functions.R&quot;)</code></pre>
-<pre><code>## Warning: Paket &#39;rngtools&#39; wurde unter R Version 4.2.3 erstellt</code></pre>
-<pre><code>## Warning: Paket &#39;xtable&#39; wurde unter R Version 4.2.2 erstellt</code></pre>
-<pre><code>## Warning: Paket &#39;dplyr&#39; wurde unter R Version 4.2.3 erstellt</code></pre>
-<pre><code>## 
-## Attache Paket: &#39;dplyr&#39;</code></pre>
-<pre><code>## Die folgenden Objekte sind maskiert von &#39;package:stats&#39;:
-## 
-##     filter, lag</code></pre>
-<pre><code>## Die folgenden Objekte sind maskiert von &#39;package:base&#39;:
-## 
-##     intersect, setdiff, setequal, union</code></pre>
-<pre><code>## Warning: Paket &#39;tidyr&#39; wurde unter R Version 4.2.3 erstellt</code></pre>
-<pre><code>## Warning: Paket &#39;tibble&#39; wurde unter R Version 4.2.3 erstellt</code></pre>
-<pre><code>## Warning: Paket &#39;ggplot2&#39; wurde unter R Version 4.2.3 erstellt</code></pre>
-<pre><code>## Warning: Paket &#39;reshape2&#39; wurde unter R Version 4.2.1 erstellt</code></pre>
-<pre><code>## 
-## Attache Paket: &#39;reshape2&#39;</code></pre>
-<pre><code>## Das folgende Objekt ist maskiert &#39;package:tidyr&#39;:
-## 
-##     smiths</code></pre>
-<pre><code>## Warning: Paket &#39;patchwork&#39; wurde unter R Version 4.2.2 erstellt</code></pre>
-<pre><code>## Warning: Paket &#39;fixest&#39; wurde unter R Version 4.2.3 erstellt</code></pre>
-<pre class="r"><code># Set up estimators to be used in the estimation via {synthdid} package
+source(&quot;Functions.R&quot;)
+
+# Set up estimators to be used in the estimation via {synthdid} package
 estimators = list(did = did_estimate, sc = sc_estimate, sdid = synthdid_estimate)
 
 # Set seed for replicability
@@ -402,10 +381,7 @@ Normal distribution and pre-/ as well as post-treatment trends are the
 same for both groups. In the context of homogeneous treatment effects,
 the number of treated units will strictly be set to 1. In the context of
 heterogeneous treatment effects, the number of treated units will be set
-to amount to 5%/10% of the total sample size. Since the main focus of
-this research lies on non-random treatment assignment, this section will
-be kept brief and not be as detailed as the second section regarding
-non-random treatment assignment.</p>
+to amount to 5%/10% of the total sample size.</p>
 <div id="effect-of-sample-size-on-estimates" class="section level3">
 <h3>1.1 Effect of sample size on estimates</h3>
 <p>To test the influence that sample size has on the estimates of all
@@ -474,12 +450,12 @@ for(i in 1:length(control_sizes)){
   # Print progress info
   print(paste0(&quot;Finished simulation for N = &quot;, N, &quot; and n_treated = &quot;, n_treated, &quot; at &quot;, Sys.time()))
 }</code></pre>
-<pre><code>## [1] &quot;Finished simulation for N = 5 and n_treated = 1 at 2024-06-13 17:41:53&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for N = 10 and n_treated = 1 at 2024-06-13 17:43:50&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for N = 50 and n_treated = 1 at 2024-06-13 17:49:54&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for N = 100 and n_treated = 1 at 2024-06-13 17:57:25&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for N = 500 and n_treated = 1 at 2024-06-13 18:12:04&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for N = 1000 and n_treated = 1 at 2024-06-13 18:42:10&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for N = 5 and n_treated = 1 at 2024-06-15 10:59:02&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for N = 10 and n_treated = 1 at 2024-06-15 11:01:14&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for N = 50 and n_treated = 1 at 2024-06-15 11:07:10&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for N = 100 and n_treated = 1 at 2024-06-15 11:14:36&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for N = 500 and n_treated = 1 at 2024-06-15 11:29:46&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for N = 1000 and n_treated = 1 at 2024-06-15 11:57:52&quot;</code></pre>
 <pre class="r"><code># Save all estimates
 write.csv(all_estimates, paste0(path, &quot;/Output/Data/all_estimates_per_N_random.csv&quot;))</code></pre>
 <div id="effect-of-pre-treatment-periods-on-estimates" class="section level4">
@@ -538,14 +514,14 @@ for(i in 1:length(treatment_periods)){
   # Print progress info
   print(paste0(&quot;Finished simulation for treatment period = &quot;, treatment_period, &quot; at &quot;, Sys.time()))
 }</code></pre>
-<pre><code>## [1] &quot;Finished simulation for treatment period = 3 at 2024-06-13 18:42:56&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for treatment period = 4 at 2024-06-13 18:44:14&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for treatment period = 5 at 2024-06-13 18:45:44&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for treatment period = 6 at 2024-06-13 18:47:25&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for treatment period = 7 at 2024-06-13 18:49:09&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for treatment period = 8 at 2024-06-13 18:50:57&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for treatment period = 9 at 2024-06-13 18:52:59&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for treatment period = 10 at 2024-06-13 18:55:05&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for treatment period = 3 at 2024-06-15 11:58:36&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for treatment period = 4 at 2024-06-15 11:59:51&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for treatment period = 5 at 2024-06-15 12:01:19&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for treatment period = 6 at 2024-06-15 12:02:59&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for treatment period = 7 at 2024-06-15 12:04:40&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for treatment period = 8 at 2024-06-15 12:06:24&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for treatment period = 9 at 2024-06-15 12:08:13&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for treatment period = 10 at 2024-06-15 12:10:11&quot;</code></pre>
 <pre class="r"><code># Save all estimates
 write.csv(all_estimates, paste0(path, &quot;/Output/Data/all_estimates_per_period_random.csv&quot;))</code></pre>
 </div>
@@ -618,16 +594,16 @@ for(i in 1:length(treated_sizes)){
       print(paste0(&quot;Finished simulation for deviation = &quot;, deviation, &quot; and n_treated = &quot;, n_treated, &quot; at &quot;, Sys.time()))
   }
 }</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 1 and n_treated = 5 at 2024-06-13 19:01:09&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 2 and n_treated = 5 at 2024-06-13 19:07:23&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 3 and n_treated = 5 at 2024-06-13 19:14:49&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 4 and n_treated = 5 at 2024-06-13 19:22:18&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 5 and n_treated = 5 at 2024-06-13 19:29:41&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 1 and n_treated = 10 at 2024-06-13 19:36:24&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 2 and n_treated = 10 at 2024-06-13 19:43:10&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 3 and n_treated = 10 at 2024-06-13 19:50:01&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 4 and n_treated = 10 at 2024-06-13 19:56:50&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for deviation = 5 and n_treated = 10 at 2024-06-13 20:03:38&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 1 and n_treated = 5 at 2024-06-15 12:15:46&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 2 and n_treated = 5 at 2024-06-15 12:21:23&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 3 and n_treated = 5 at 2024-06-15 12:27:00&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 4 and n_treated = 5 at 2024-06-15 12:32:35&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 5 and n_treated = 5 at 2024-06-15 12:38:12&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 1 and n_treated = 10 at 2024-06-15 12:43:23&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 2 and n_treated = 10 at 2024-06-15 12:48:31&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 3 and n_treated = 10 at 2024-06-15 12:53:40&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 4 and n_treated = 10 at 2024-06-15 12:58:50&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for deviation = 5 and n_treated = 10 at 2024-06-15 13:04:00&quot;</code></pre>
 <pre class="r"><code># Save all estimates
 write.csv(all_estimates, paste0(path, &quot;/Output/Data/all_estimates_per_deviation_random.csv&quot;))</code></pre>
 </div>
@@ -689,10 +665,10 @@ for(i in 1:length(post_treated_trends)){
   # Print progress info
   print(paste0(&quot;Finished simulation for post treated trend = &quot;, post_treated_trend, &quot; at &quot;, Sys.time()))
 }</code></pre>
-<pre><code>## [1] &quot;Finished simulation for post treated trend = 0.2 at 2024-06-13 20:10:48&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for post treated trend = 0.3 at 2024-06-13 20:17:47&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for post treated trend = 0.5 at 2024-06-13 20:23:39&quot;</code></pre>
-<pre><code>## [1] &quot;Finished simulation for post treated trend = 1 at 2024-06-13 20:29:45&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for post treated trend = 0.2 at 2024-06-15 13:09:34&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for post treated trend = 0.3 at 2024-06-15 13:15:10&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for post treated trend = 0.5 at 2024-06-15 13:20:44&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for post treated trend = 1 at 2024-06-15 13:26:15&quot;</code></pre>
 <pre class="r"><code># Save all estimates
 write.csv(all_estimates, paste0(path, &quot;/Output/Data/all_estimates_per_post_treated_trend_random.csv&quot;))</code></pre>
 </div>
@@ -710,7 +686,8 @@ out separately and the computation time will be tracked. Each simulation
 <pre class="r"><code>set.seed(100)
 
 # Set parameters for simulation
-population_sizes &lt;- c(10, 50, 100, 250, 500, 1000, 5000)
+population_sizes &lt;- c(10, 50, 100, 250, 500, 1000, 5000, 10000)
+iterations &lt;- 100
 post_treated_trend &lt;- 0.1
 
 # Construct df to store mean computation times
@@ -740,13 +717,14 @@ for (i in 1:length(population_sizes)){
   # Print progress info
   print(paste0(&quot;Finished simulation for N = &quot;, N, &quot; and n_treated = &quot;, n_treated, &quot; at &quot;, Sys.time()))
 }</code></pre>
-<pre><code>## [1] &quot;Finished simulation for N = 9 and n_treated = 1 at 2024-06-13 20:32:05&quot;
-## [1] &quot;Finished simulation for N = 45 and n_treated = 5 at 2024-06-13 20:38:41&quot;
-## [1] &quot;Finished simulation for N = 90 and n_treated = 10 at 2024-06-13 20:44:14&quot;
-## [1] &quot;Finished simulation for N = 225 and n_treated = 25 at 2024-06-13 20:51:34&quot;
-## [1] &quot;Finished simulation for N = 450 and n_treated = 50 at 2024-06-13 21:02:31&quot;
-## [1] &quot;Finished simulation for N = 900 and n_treated = 100 at 2024-06-13 21:19:40&quot;
-## [1] &quot;Finished simulation for N = 4500 and n_treated = 500 at 2024-06-13 22:35:06&quot;</code></pre>
+<pre><code>## [1] &quot;Finished simulation for N = 9 and n_treated = 1 at 2024-06-15 13:26:27&quot;
+## [1] &quot;Finished simulation for N = 45 and n_treated = 5 at 2024-06-15 13:27:01&quot;
+## [1] &quot;Finished simulation for N = 90 and n_treated = 10 at 2024-06-15 13:27:31&quot;
+## [1] &quot;Finished simulation for N = 225 and n_treated = 25 at 2024-06-15 13:28:12&quot;
+## [1] &quot;Finished simulation for N = 450 and n_treated = 50 at 2024-06-15 13:29:15&quot;
+## [1] &quot;Finished simulation for N = 900 and n_treated = 100 at 2024-06-15 13:30:58&quot;
+## [1] &quot;Finished simulation for N = 4500 and n_treated = 500 at 2024-06-15 13:38:46&quot;
+## [1] &quot;Finished simulation for N = 9000 and n_treated = 1000 at 2024-06-15 13:52:43&quot;</code></pre>
 <pre class="r"><code># Save results for later use
 write.csv(all_computation_times, paste0(path, &quot;/Output/Data/computation_times_per_N_random.csv&quot;))</code></pre>
 </div>

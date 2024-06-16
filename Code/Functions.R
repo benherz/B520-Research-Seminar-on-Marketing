@@ -335,8 +335,6 @@ contrast_simulation <- function(simulation_function, simulation_params, iteratio
 }
 
 
-
-
 ### Function to simulate and estimate repeatedly including IPTW matching
 repeated_simulation_iptw <- function(simulation_function, simulation_params, iterations = 1000) {
   dfs = list()

@@ -1,0 +1,538 @@
+---
+title: "A comparison of Difference in Differences, Synthetic Controls and
+Synthetic Difference in Differences via simulated data - Results"
+author: "Benjamin Herzberger"
+date: "2024-06-14"
+output: html_document
+---
+
+```{r Setup, warning = FALSE, message = FALSE}
+rm(list=ls())
+# Load necessary packages
+library(tidyverse)
+library(ggplot2)
+library(reshape2)
+library(RColorBrewer)
+library(patchwork)
+
+source("Functions.R")
+# Set up relative path for working directory
+path <- "C:/Users/benny/OneDrive/Studium/Tübingen/DS in B&E/4. Semester SS2024/B520 Research Seminar on Marketing/Code"
+```
+
+This document will not contain any literal results or explanations, but is only used
+to visualize the findings of both simulation designs. All interpretations and collection
+of the results will be part of the final thesis (PDF). 
+
+## 1.0 Effect of sample size on estimates
+
+```{r Effect of sample sizes, warning = FALSE, message = FALSE}
+# Load data
+estimates_per_N_random <- read.csv("Output/Data/all_estimates_per_N_random.csv") %>%
+  select(-X)
+estimates_per_N <- read.csv("Output/Data/all_estimates_per_N.csv") %>%
+  select(-X)
+
+# Change to long format for boxplots
+random_df_melted <- melt(estimates_per_N_random, id.vars = "N", measure.vars = c("did", "sc", "sdid"), 
+                  variable.name = "Method", value.name = "Estimate")
+df_melted <- melt(estimates_per_N, id.vars = "N", measure.vars = c("did", "sc", "sdid"), 
+                  variable.name = "Method", value.name = "Estimate")
+
+# Adjust method names for labeling
+random_df_melted$Method <- factor(random_df_melted$Method, levels = c("did", "sc", "sdid"), labels = c("DiD", "SC", "SDiD"))
+df_melted$Method <- factor(df_melted$Method, levels = c("did", "sc", "sdid"), labels = c("DiD", "SC", "SDiD"))
+
+# Visualize estimates in separate boxplots (combined would be nice, but is too cluttered)
+# Random treatment assignment
+random_N_plot <- ggplot(random_df_melted, aes(x = as.factor(N), y = Estimate, fill = Method)) +
+  geom_boxplot(outlier.shape = 16, outlier.size = 2, alpha = 0.8) + 
+  geom_hline(yintercept = 1, color = "red", size = 1, alpha = 0.8) + # Treatment effect
+  scale_fill_brewer(palette = "Set2") + 
+  labs(
+    title = "Distribution of estimates per sample size (random)",
+    x = "Sample size",
+    y = "Estimate",
+    fill = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold", size = 15), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
+  ) +
+  coord_cartesian(ylim = c(min(df_melted$Estimate), max(df_melted$Estimate))) 
+
+# Non-random treatment assignment
+non_random_N_plot <- ggplot(df_melted, aes(x = as.factor(N), y = Estimate, fill = Method)) +
+  geom_boxplot(outlier.shape = 16, outlier.size = 2, alpha = 0.8, varwidth = TRUE) + 
+  geom_hline(yintercept = 1, color = "red", size = 1, alpha = 0.8) + # Treatment effect
+  scale_fill_brewer(palette = "Set2") + 
+  labs(
+    title = "Distribution of estimates per sample size (non-random)",
+    x = "Sample Size",
+    y = "Estimate",
+    fill = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold", size = 15), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
+  ) +
+  coord_cartesian(ylim = c(min(df_melted$Estimate), max(df_melted$Estimate))) 
+
+# Save plots to use in paper
+ggsave("Output/Plots/Effect_of_sample_size_random.png", random_N_plot, width = 10, height = 6, dpi = 300)
+ggsave("Output/Plots/Effect_of_sample_size_non_random.png", non_random_N_plot, width = 10, height = 6, dpi = 300)
+```
+
+
+## 2.0 Effect of number of pre-treatment periods on estimates
+
+```{r Effect of Treatment periods}
+# Load data
+estimates_per_period_random <- read.csv("Output/Data/all_estimates_per_period_random.csv") %>%
+  select(-X)
+estimates_per_period <- read.csv("Output/Data/all_estimates_per_period.csv") %>%
+  select(-X)
+
+# Change to long format for boxplots
+random_period_df_melted <- melt(estimates_per_period_random, id.vars = "Treatment.Period", measure.vars = c("did", "sc", "sdid"), 
+                  variable.name = "Method", value.name = "Estimate")
+period_df_melted <- melt(estimates_per_period, id.vars = "Treatment.Period", measure.vars = c("did", "sc", "sdid"), 
+                  variable.name = "Method", value.name = "Estimate")
+
+# Adjust method names for labeling
+random_period_df_melted$Method <- factor(random_period_df_melted$Method, levels = c("did", "sc", "sdid"), labels = c("DiD", "SC", "SDiD"))
+period_df_melted$Method <- factor(period_df_melted$Method, levels = c("did", "sc", "sdid"), labels = c("DiD", "SC", "SDiD"))
+
+# Boxplots
+# Random treatment assignment
+random_period_plot <- ggplot(random_period_df_melted, aes(x = as.factor(Treatment.Period), y = Estimate, fill = Method)) +
+  geom_boxplot(outlier.shape = 16, outlier.size = 2, alpha = 0.8) + 
+  geom_hline(yintercept = 1, color = "red", size = 1, alpha = 0.8) + # Treatment effect
+  scale_fill_brewer(palette = "Set2") + 
+  labs(
+    title = "Distribution of estimates per treatment period (random)",
+    x = "Treatment period",
+    y = "Estimate",
+    fill = "Method"
+  ) +
+  theme_minimal(base_size = 18) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold", size = 15), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
+  ) +
+  coord_cartesian(ylim = c(min(df_melted$Estimate), max(df_melted$Estimate))) 
+
+# Non-random treatment assignment
+non_random_period_plot <- ggplot(period_df_melted, aes(x = as.factor(Treatment.Period), y = Estimate, fill = Method)) +
+  geom_boxplot(outlier.shape = 16, outlier.size = 2, alpha = 0.8, varwidth = TRUE) + 
+  geom_hline(yintercept = 1, color = "red", size = 1, alpha = 0.8) + # Treatment effect
+  scale_fill_brewer(palette = "Set2") + 
+  labs(
+    title = "Distribution of estimates per treatment period (non-random)",,
+    x = "Treatment period",
+    y = "Estimate",
+    fill = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold", size = 15), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
+  ) +
+  coord_cartesian(ylim = c(min(df_melted$Estimate), max(df_melted$Estimate))) 
+
+# Save plots to use in paper
+ggsave("Output/Plots/Effect_of_treatment_period_random.png", random_period_plot, width = 10, height = 6, dpi = 300)
+ggsave("Output/Plots/Effect_of_treatment_period__non_random.png", non_random_period_plot, width = 10, height = 6, dpi = 300)
+```
+
+
+## 3.0 Effect of heterogeneity on estimates
+
+```{r Effect of heterogeneity}
+# Load data
+estimates_per_heterogeneity_random <- read.csv("Output/Data/all_estimates_per_deviation_random.csv") %>%
+  select(-X)
+estimates_per_heterogeneity <- read.csv("Output/Data/all_estimates_per_deviation.csv") %>%
+  select(-X)
+
+# Add bias column for plotting
+estimates_per_heterogeneity_random <- estimates_per_heterogeneity_random %>% mutate(did_error = abs(did - Effect)) %>% 
+  mutate(sc_error = abs(sc - Effect)) %>% mutate(sdid_error = abs(sdid - Effect)) 
+estimates_per_heterogeneity <- estimates_per_heterogeneity %>% mutate(did_error = abs(did - Effect)) %>%
+  mutate(sc_error = abs(sc - Effect)) %>% mutate(sdid_error = abs(sdid - Effect))
+
+# Compute bias per Treated and Heterogeneity
+random_biases <- estimates_per_heterogeneity_random %>% group_by(Treated, Heterogeneity) %>%
+  summarise(did_bias = mean(abs(did - Effect)), sc_bias = mean(abs(sc - Effect)), sdid_bias = mean(abs(sdid - Effect))) %>%
+  pivot_longer(cols = c(did_bias, sc_bias, sdid_bias), names_to = "Method", values_to = "Bias")
+
+non_random_biases <- estimates_per_heterogeneity %>% group_by(Treated, Heterogeneity) %>%
+  summarise(did_bias = mean(abs(did - Effect)), sc_bias = mean(abs(sc - Effect)), sdid_bias = mean(abs(sdid - Effect))) %>%
+  pivot_longer(cols = c(did_bias, sc_bias, sdid_bias), names_to = "Method", values_to = "Bias")
+
+# Random treatment
+random_bias_plot <- ggplot() +
+  geom_line(data = random_biases %>% filter(Treated == 5), 
+            aes(x = Heterogeneity, y = Bias, color = Method), size = 1) +
+  geom_point(data = random_biases %>% filter(Treated == 5), 
+             aes(x = Heterogeneity, y = Bias, color = Method, shape = "Treated = 5"), size = 3) +
+  geom_line(data = random_biases %>% filter(Treated == 10), 
+            aes(x = Heterogeneity, y = Bias, color = Method), size = 1) +
+  geom_point(data = random_biases %>% filter(Treated == 10), 
+             aes(x = Heterogeneity, y = Bias, color = Method, shape = "Treated = 10"), size = 3) +
+  scale_color_brewer(palette = "Set2",
+                     labels = c("did_bias" = "DiD", "sc_bias" = "SC", "sdid_bias" = "SDiD")) +
+  scale_shape_manual(name = "Treated", values = c("Treated = 5" = 16, "Treated = 10" = 17),
+                     labels = c("Treated = 5" = "5% treated", "Treated = 10" = "10% treated")) +
+  labs(
+    title = "Bias per heterogeneity in random assignment",
+    x = "Standard deviation of treatment effect distribution",
+    y = "Bias",
+    color = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold", size = 15), 
+    legend.title.align = 0.5,
+    legend.text.align = 0.5, 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
+  ) 
+
+# Non-random treatment
+non_random_bias_plot <- ggplot() +
+  geom_line(data = non_random_biases %>% filter(Treated == 5), 
+            aes(x = Heterogeneity, y = Bias, color = Method), size = 1) +
+  geom_point(data = non_random_biases %>% filter(Treated == 5), 
+             aes(x = Heterogeneity, y = Bias, color = Method, shape = "Treated = 5"), size = 3) +
+  geom_line(data = non_random_biases %>% filter(Treated == 10), 
+            aes(x = Heterogeneity, y = Bias, color = Method), size = 1) +
+  geom_point(data = non_random_biases %>% filter(Treated == 10), 
+             aes(x = Heterogeneity, y = Bias, color = Method, shape = "Treated = 10"), size = 3) +
+  scale_color_brewer(palette = "Set2",
+                     labels = c("did_bias" = "DiD", "sc_bias" = "SC", "sdid_bias" = "SDiD")) +
+  scale_shape_manual(name = "Treated", values = c("Treated = 5" = 16, "Treated = 10" = 17),
+                     labels = c("Treated = 5" = "5% treated", "Treated = 10" = "10% treated")) +
+  labs(
+    title = "Bias per heterogeneity in non-random assignment",
+    x = "Standard deviation of treatment effect distribution",
+    y = "Bias",
+    color = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold", size = 15), 
+    legend.title.align = 0.5,
+    legend.text.align = 0.5, 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
+  ) 
+
+ggsave("Output/Plots/Bias_per_heterogeneity_random.png", random_bias_plot, width = 10, height = 6, dpi = 300)
+ggsave("Output/Plots/Bias_per_heterogeneity_non_random.png", non_random_bias_plot, width = 10, height = 6, dpi = 300)
+```
+
+## 4.0 Effect of parallel trends violation on estimates
+
+```{r Violation of parallel trends}
+# Load data
+estimates_per_trend_random <- read.csv("Output/Data/all_estimates_per_post_treated_trend_random.csv") %>%
+  select(-X)
+estimates_per_trend_non_random <- read.csv("Output/Data/all_estimates_per_treated_trend.csv") %>%
+  select(-X)
+
+# Change to long format for boxplots
+random_trend_df_melted <- melt(estimates_per_trend_random, id.vars = "Post.Treated.Trend", measure.vars = c("did", "sc", "sdid"), 
+                  variable.name = "Method", value.name = "Estimate")
+trend_df_melted <- melt(estimates_per_trend_non_random, id.vars = "Post.Treated.Trend", measure.vars = c("did", "sc", "sdid"),
+                  variable.name = "Method", value.name = "Estimate")
+
+# Adjust method names for labeling
+random_trend_df_melted$Method <- factor(random_trend_df_melted$Method, levels = c("did", "sc", "sdid"), labels = c("DiD", "SC", "SDiD"))
+trend_df_melted$Method <- factor(trend_df_melted$Method, levels = c("did", "sc", "sdid"), labels = c("DiD", "SC", "SDiD"))
+
+# Boxplots
+# Random treatment assignment
+random_trends_plot <- ggplot(random_trend_df_melted, aes(x = as.factor(Post.Treated.Trend), y = Estimate, fill = Method)) +
+  geom_boxplot(outlier.shape = 16, outlier.size = 2, alpha = 0.8) + 
+  geom_hline(yintercept = 1, color = "red", size = 1, alpha = 0.8) + # Treatment effect
+  scale_fill_brewer(palette = "Set2") + 
+  labs(
+    title = "Distribution of estimates per parallel trends violation (random)",
+    x = "Post-treatment trend of treatment population",
+    y = "Estimate",
+    fill = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold", size = 15), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
+  ) +
+  coord_cartesian(ylim = c(min(df_melted$Estimate), max(df_melted$Estimate))) 
+
+# Non-random treatment assignment
+non_random_trends_plot <- ggplot(trend_df_melted, aes(x = as.factor(Post.Treated.Trend), y = Estimate, fill = Method)) +
+  geom_boxplot(outlier.shape = 16, outlier.size = 2, alpha = 0.8, varwidth = TRUE) + 
+  geom_hline(yintercept = 1, color = "red", size = 1, alpha = 0.8) + # Treatment effect
+  scale_fill_brewer(palette = "Set2") + 
+  labs(
+    title = "Distribution of estimates per parallel trends violation (non-random)",
+    x = "Trend of treatment population",
+    y = "Estimate",
+    fill = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold", size = 15), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank(),
+    axis.title.x = element_text(size = 18),
+    axis.title.y = element_text(size = 18)
+  ) +
+  coord_cartesian(ylim = c(min(df_melted$Estimate), max(df_melted$Estimate))) 
+
+# Save plots to use in paper
+ggsave("Output/Plots/Effect_of_parallel_trends_violation_random.png", random_trends_plot, width = 10, height = 6, dpi = 300)
+ggsave("Output/Plots/Effect_of_non_parallel_trends.png", non_random_trends_plot, width = 10, height = 6, dpi = 300)
+```
+
+## 5.0 Computation times
+
+```{r Computation times}
+# Load data
+computation_times <- read.csv("Output/Data/computation_times_per_N_random.csv") %>%
+  select(-X)
+
+# Rearrange just to make sure that colors are uniform across all plots
+computation_times <- computation_times %>% select(N, TWFE, SC, SDiD) %>%
+  rename(DiD = TWFE)
+
+# Compute mean per N
+mean_times <- computation_times %>% group_by(N) %>% summarise_all(mean)
+
+# Pivot to long format
+times_melted <- melt(mean_times, id.vars = "N", measure.vars = c("DiD", "SC", "SDiD"), 
+                  variable.name = "Method", value.name = "Time")
+
+# Assuming 'df' is your dataframe
+times_line_plot <- ggplot(times_melted, aes(x = as.factor(N), y = Time, color = Method, group = Method)) +
+  geom_line(size = 1) + 
+  scale_color_brewer(palette = "Set2") +
+  labs(
+    title = "Computation time per sample size",
+    x = "Sample size",
+    y = "Time in seconds",
+    color = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold"), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank() 
+  )
+ggsave("Output/Plots/Computation_times_per_N_random.png", times_line_plot, width = 10, height = 6, dpi = 300)
+mean_times
+# Print mean times rounded to 4 digits
+round(mean_times, 4)
+```
+
+
+## Really large samples
+
+Since the findings about really large sample sizes are not that interesting, they will
+not be included in the final thesis. After being instructed to research this aspect, 
+I expected the results to be surprising. However, basically all methods produce similar
+results as in settings where fewer observations were regarded. Unfortunately, this took quite
+some time, as the computation on the cluster took further steps to enable this analysis.
+If the page limit of the thesis was increased, the results would definitely be included, but
+since contents of the thesis have to be selected carefully, this part will be omitted. 
+It is however remarkable, that SDiD produces identical results in all settings. 
+
+```{r Really large samples}
+# Load data
+estimates_per_N_large_random <- read.csv("Output/Cluster/Output/Data/all_estimates_large_sample_random.csv") %>%
+  select(-X)
+estimates_per_N_large_mean <- read.csv("Output/Cluster/Output/Data/all_estimates_large_sample_diff_mean.csv") %>%
+  select(-X)
+estimates_per_N_large_trend <- read.csv("Output/Cluster/Output/Data/all_estimates_large_sample_diff_trend.csv") %>%
+  select(-X)
+
+estimates_per_N_large_random <- melt(estimates_per_N_large_random, id.vars = "N", measure.vars = c("did", "sc", "sdid"), 
+                  variable.name = "Method", value.name = "Estimate")
+estimates_per_N_large_mean <- melt(estimates_per_N_large_mean, id.vars = "N", measure.vars = c("did", "sc", "sdid"), 
+                  variable.name = "Method", value.name = "Estimate")
+large_diff_trend_df_melted <- melt(estimates_per_N_large_trend, id.vars = "N", measure.vars = c("did", "sc", "sdid"),
+                  variable.name = "Method", value.name = "Estimate")
+
+# Adjust method names for labeling
+estimates_per_N_large_random$Method <- factor(estimates_per_N_large_random$Method, levels = c("did", "sc", "sdid"), labels = c("DiD", "SC", "SDiD"))
+estimates_per_N_large_mean$Method <- factor(estimates_per_N_large_mean$Method, levels = c("did", "sc", "sdid"), labels = c("DiD", "SC", "SDiD"))
+large_diff_trend_df_melted$Method <- factor(large_diff_trend_df_melted$Method, levels = c("did", "sc", "sdid"), labels = c("DiD", "SC", "SDiD"))
+
+# Boxplots
+# Random treatment assignment
+random_N_large_plot <- ggplot(estimates_per_N_large_random, aes(x = as.factor(N), y = Estimate, fill = Method)) +
+  geom_boxplot(outlier.shape = 16, outlier.size = 2, alpha = 0.8) + 
+  geom_hline(yintercept = 1, color = "red", size = 1, alpha = 0.8) + # Treatment effect
+  scale_fill_brewer(palette = "Set2") + 
+  labs(
+    title = "Distribution of estimates per sample size (random)",
+    x = "Sample size",
+    y = "Estimate",
+    fill = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold"), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank() 
+  ) +
+  coord_cartesian(ylim = c(min(estimates_per_N_large_random$Estimate), max(estimates_per_N_large_random$Estimate)))
+
+# Diff-mean
+diff_mean_N_large_plot <- ggplot(estimates_per_N_large_mean, aes(x = as.factor(N), y = Estimate, fill = Method)) +
+  geom_boxplot(outlier.shape = 16, outlier.size = 2, alpha = 0.8) + 
+  geom_hline(yintercept = 1, color = "red", size = 1, alpha = 0.8) + # Treatment effect
+  scale_fill_brewer(palette = "Set2") + 
+  labs(
+    title = "Distribution of estimates per sample size (diff-mean)",
+    x = "Sample size",
+    y = "Estimate",
+    fill = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold"), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank() 
+  ) +
+  coord_cartesian(ylim = c(min(estimates_per_N_large_mean$Estimate), max(estimates_per_N_large_mean$Estimate)))
+
+# Diff-trend
+diff_trend_N_large_plot <- ggplot(large_diff_trend_df_melted, aes(x = as.factor(N), y = Estimate, fill = Method)) +
+  geom_boxplot(outlier.shape = 16, outlier.size = 2, alpha = 0.8) + 
+  geom_hline(yintercept = 1, color = "red", size = 1, alpha = 0.8) + # Treatment effect
+  scale_fill_brewer(palette = "Set2") + 
+  labs(
+    title = "Distribution of estimates per sample size (diff-trend)",
+    x = "Sample size",
+    y = "Estimate",
+    fill = "Method"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 20), 
+    axis.title = element_text(face = "bold"), 
+    legend.position = "right", 
+    legend.title = element_text(face = "bold"), 
+    panel.grid.major = element_line(color = "grey80"),
+    panel.grid.minor = element_blank() 
+  ) +
+  coord_cartesian(ylim = c(min(large_diff_trend_df_melted$Estimate), max(large_diff_trend_df_melted$Estimate)))
+```
+
+## Exemplary visualizations
+
+For one random and one non-random study design: Visualize the development of one single data frame,
+visualize the development of all data frames (mean) and visualize estimate distribution.
+
+```{r Exemplary visualizations}
+# Set parameters that are used for plotting
+treatment_effect <- 1
+iterations <- 1000
+
+# For random assignment, the simulation with varying number of pre-treatment
+# periods is considered. More specifically, the one in which treatment is applied 
+# in period 5 is considered.
+N <- 9
+n_treated <- 1
+treatment_period <- 5
+example_df <- read.csv("Output/Data/Example DFs/example_df_treatment_period_5_random.csv")
+estimates_random <- read.csv("Output/Data/all_estimates_per_period_random.csv") %>%
+  select(-X) %>% filter(Treatment.Period == 5)
+
+# Plot estimate distribution
+estimate_plot_random <- plot_estimates(estimates_random)
+
+# Plot individual example
+individual_plot_random <- plot_individual(example_df)
+
+# Save plots to use in thesis
+ggsave("Output/Plots/Estimate_distribution_random.png", estimate_plot_random, width = 10, height = 6, dpi = 300)
+ggsave("Output/Plots/Individual_example_random.png", individual_plot_random, width = 10, height = 6, dpi = 300)
+
+# For non random treatment, the simulation with degree of violation of 
+# parallel trends is considered. Further, the configuration in which the treated
+# trend is set to 0.5 is considered.
+treatment_period <- 8
+N <- 100
+n_treated <- 5
+example_df_non_random <- read.csv("Output/Data/Example DFs/example_df_treated_trend_0.5.csv")
+estimates_non_random <- read.csv("Output/Data/all_estimates_per_treated_trend.csv") %>%
+  select(-X) %>% filter(Post.Treated.Trend == 0.5)
+
+# Plot estimate distribution
+estimate_plot_random <- plot_estimates(estimates_non_random)
+
+# Plot individual example
+individual_plot_random <- plot_individual(example_df_non_random)
+
+# Save plots to use in thesis
+ggsave("Output/Plots/Estimate_distribution_non_random.png", estimate_plot_random, width = 10, height = 6, dpi = 300)
+ggsave("Output/Plots/Individual_example_non_random.png", individual_plot_random, width = 10, height = 6, dpi = 300)
+```
+

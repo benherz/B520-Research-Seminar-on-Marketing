@@ -1,0 +1,3 @@
+This Github link contains the repository I used while working on this thesis. All code scripts and results are included. 
+
+https://github.com/benherz/B520-Research-Seminar-on-Marketing

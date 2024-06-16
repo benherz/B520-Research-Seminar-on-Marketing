@@ -1,0 +1,32 @@
+Loading module dependency 'compiler/gnu/13.3'.
+Loading module dependency 'numlib/mkl/2022.2.1'.
+
+============================= JOB FEEDBACK =============================
+
+NodeName=uc2n269
+Job ID: 23784557
+Cluster: uc2
+User/Group: tu_zxmcw68/tu_tu
+State: COMPLETED (exit code 0)
+Nodes: 1
+Cores per node: 2
+CPU Utilized: 08:12:41
+CPU Efficiency: 49.78% of 16:29:42 core-walltime
+Job Wall-clock time: 08:14:51
+Memory Utilized: 12.77 GB
+Memory Efficiency: 65.38% of 19.53 GB
+
+============================= JOB FEEDBACK =============================
+
+NodeName=uc2n275
+Job ID: 23784559
+Cluster: uc2
+User/Group: tu_zxmcw68/tu_tu
+State: COMPLETED (exit code 0)
+Nodes: 1
+Cores per node: 2
+CPU Utilized: 08:40:59
+CPU Efficiency: 49.60% of 17:30:24 core-walltime
+Job Wall-clock time: 08:45:12
+Memory Utilized: 12.53 GB
+Memory Efficiency: 64.15% of 19.53 GB

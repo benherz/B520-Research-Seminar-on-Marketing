@@ -121,7 +121,7 @@ sample size is rather small. Each simulation will again be carried out 1000 time
 ```{r Effect of Treatment periods}
 set.seed(100)
 
-# Set addutional simulation parameters
+# Set additional simulation parameters
 N <- 9
 
 # Setting a lower value than 3 is not possible 
@@ -322,7 +322,8 @@ the computation time will be tracked. Each simulation (sample size) will be carr
 set.seed(100)
 
 # Set parameters for simulation
-population_sizes <- c(10, 50, 100, 250, 500, 1000, 5000)
+population_sizes <- c(10, 50, 100, 250, 500, 1000, 5000, 10000)
+iterations <- 100
 post_treated_trend <- 0.1
 
 # Construct df to store mean computation times

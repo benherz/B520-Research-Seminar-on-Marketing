@@ -6,8 +6,8 @@ date: "2024-06-13"
 output: html_document
 ---
 
-```{r Setup}
-rm(list=ls())
+```{r Setup, warning = FALSE, message = FALSE}
+#rm(list=ls())
 source("Functions.R")
 
 # Set up estimators to be used in the estimation via {synthdid} package
@@ -52,9 +52,9 @@ iterations <- 1000
 T <- 10
 n_treated <- 1
 pre_control_trend <- 0.1
-pre_treated_trend <- 0.2
+pre_treated_trend <- 0.3
 post_control_trend <- 0.1
-post_treated_trend <- 0.2
+post_treated_trend <- 0.3
 treatment_effect <- 1
 control_sizes <- c(5, 10, 50, 100, 500, 1000)
 treatment_period <- T - 2
@@ -270,7 +270,7 @@ treated_trends <- c(0.2, 0.3, 0.5, 0.75, 1)
 all_estimates <- data.frame(matrix(ncol = 5, nrow = 0))
 colnames(all_estimates) <- c("Effect", "Post Treated Trend", "did", "sc", "sdid")
 
-for(i in 1:length(post_treated_trends)){
+for(i in 1:length(treated_trends)){
   
   pre_treated_trend <- treated_trends[i]
   post_treated_trend <- pre_treated_trend
@@ -313,4 +313,65 @@ write.csv(all_estimates, paste0(path, "/Output/Data/all_estimates_per_treated_tr
 ```
 
 
+### 2.5 Inverse Probability of Treatment Weighting (IPTW) 
 
+When treatment assignment is not random, each observation has an implicit probability of
+receiving the treatment. In social sciences this becomes obvious if e.g. only certain
+individuals are treated based on observable characteristics. In order to mitigate the influence
+of these covariates IPTW is applied. For each observation, the probability 
+of receiving the treatment they received (1 for treated units, 0 for un-treated) is calculated.
+The inverse of this probability is then used to re-weigh the initial observation, effectively
+creating a new dataset. In this dataset, the influence of the confounding characteristics
+are reduced. Because only the outcome variable is being modeled here, observations will be matched
+oh their pre-treatment mean. Therefore, in order for IPTW to work, the treated population
+has to be clearly distinguishable from the control population. In this context, this can be achieved in two ways:
+Setting different trends from the very beginning, or drawing the treated population from a 
+different distribution. Both approaches will be considered, while employing a sufficiently large
+overall sample size to return reliable results. Every simulation will be carried out 1000 times. 
+
+
+
+```{r IPTW matching}
+# Set seed anew, so chunks can also be run independently
+set.seed(100)
+
+# Additional parameters
+iterations <- 1000
+T <- 10
+N <- 90
+n_treated <- 10
+pre_control_trend <- 0.1
+pre_treated_trend <- 0.3
+post_control_trend <- 0.1
+post_treated_trend <- 0.3
+treated_mean = 3
+treatment_effect <- 1
+treatment_period <- T
+
+# Set up list of simulation parameters
+simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                           pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                           post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                           treatment_effect = treatment_effect, effect = effect, treated_mean = treated_mean)
+
+# Simulation and estimation
+results <- repeated_simulation(simulation_function = treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations, iptw = FALSE)
+results_iptw <- repeated_simulation(simulation_function = treatment_simulation,
+                                     simulation_params = simulation_params, iterations = iterations, iptw = TRUE)
+
+estimates <- results$estimates
+estimates_iptw <- results_iptw$estimates
+```
+
+### Visualize unmatched estimate distribution
+
+```{r}
+plot_estimates(estimates)
+```
+
+###  Visualize matched estimate distribution
+
+```{r}
+plot_estimates(estimates_iptw)
+````

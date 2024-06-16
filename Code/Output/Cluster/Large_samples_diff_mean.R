@@ -1,0 +1,77 @@
+##### Testing the effect of very large sample sizes #####
+source("Functions.R")
+
+# Specify estimators to be used by synthdid package
+estimators = list(did=did_estimate, sc=sc_estimate, sdid=synthdid_estimate)
+# Set seed anew, because chunks will be run separately
+set.seed(100)
+
+# Set T and treatment period to lowest possible value
+iterations <- 10
+large_index <- round(runif(1, 1, iterations)) # will be used to select one simulation for visualization
+T <- 3
+treatment_period <- 3
+
+# Specify population ranges to loop over
+control_sizes <- c(10000, 50000, 100000, 500000, 1000000, 3000000)
+n_treated <- 1
+
+# Set all other parameters as before
+pre_control_trend <- 0.1
+pre_treated_trend <- 0.1
+post_control_trend <- 0.1
+post_treated_trend <- 0.1
+treatment_effect <- 1
+
+
+# Initialize df to store estimates per iteration
+all_estimates <- data.frame(matrix(ncol = 5, nrow = 0))
+colnames(all_estimates) <- c("Effect", "Post Treated Trend", "did", "sc", "sdid")
+
+# Intialize df to store time per population size
+time_df <- data.frame(matrix(ncol = 2, nrow = length(control_sizes)))
+colnames(time_df) <- c("N", "time")  
+
+
+for(i in 1:length(control_sizes)){
+  
+  # Extract N for file naming
+  N <- control_sizes[i]
+  simulation_params <- list(N = N, T = T, n_treated = n_treated, treatment_period = treatment_period,
+                            pre_control_trend = pre_control_trend, pre_treated_trend = pre_treated_trend,
+                            post_control_trend = post_control_trend, post_treated_trend = post_treated_trend,
+                            treatment_effect = treatment_effect, treated_mean = 2)
+  
+  
+  # Simulation & estimation
+  start_time <- Sys.time()
+  results <- repeated_simulation(simulation_function = treatment_simulation,
+                                 simulation_params = simulation_params, iterations = iterations)
+  # Grab estimates
+  estimates <- results$estimates
+  
+  # Grab one example df at random index
+  df <- results$dfs[[large_index]]
+  
+  # Save example df
+  write.csv(df, paste0("Output/Data/example_df_N_", N, "_diff_mean.csv"))
+  
+  # Append computation time to time_df
+  time_df[i, ] <- c(N, Sys.time() - start_time) 
+  
+  # Add additional simulation parameters to estimates
+  estimates <- cbind(treatment_effect, N, estimates)
+  colnames(estimates) <- c("Effect", "N", "did", "sc", "sdid")
+  
+  # Append estimates to all_estimates
+  all_estimates <- rbind(all_estimates, estimates)
+  
+  # Save plot of grouped simulations within each iteration
+  plot_grouped_simulations(results$dfs) %>%
+    ggsave(filename = paste0("Output/Plots/data_plot_N_", N, "_diff_mean.png"), width = 10, height = 5, units = "in", dpi = 300)
+  
+}
+
+write.csv(time_df, "Output/Data/time_df_large_sample_diff_mean.csv")
+write.csv(all_estimates, "Output/Data/all_estimates_large_sample_diff_mean.csv")
+
